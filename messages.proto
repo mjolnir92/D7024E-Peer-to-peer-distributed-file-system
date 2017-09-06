@@ -1,0 +1,26 @@
+syntax = "proto3";
+//package rpcmsg;
+
+message KademliaID {
+  bytes id = 1;
+}
+
+message Contact {
+  KademliaID id = 1;
+  string address = 2;
+  // oneof address_oneof {
+  //   string address_s = 2;
+  //   bytes address_b = 3;
+  //   // string representation is not very efficient
+  //   // should use bytes instead and infer IP version from length
+  // }
+}
+
+message Value {
+  bytes value = 1;
+}
+
+message KVPair {
+  KademliaID key = 1;
+  Value value = 2;
+}
