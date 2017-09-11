@@ -1,19 +1,26 @@
 syntax = "proto3";
 //package rpcmsg;
 
+service KademliaService {
+  rpc FindNode (KademliaID) returns (Contacts);
+}
+
 message KademliaID {
   bytes id = 1;
 }
 
-message Contact {
-  KademliaID id = 1;
-  string address = 2;
-  // oneof address_oneof {
-  //   string address_s = 2;
-  //   bytes address_b = 3;
-  //   // string representation is not very efficient
-  //   // should use bytes instead and infer IP version from length
-  // }
+message Contacts {
+  message Contact {
+    KademliaID id = 1;
+    string address = 2;
+    // oneof address_oneof {
+    //   string address_s = 2;
+    //   bytes address_b = 3;
+    //   // string representation is not very efficient
+    //   // should use bytes instead and infer IP version from length
+    // }
+  }
+  repeated Contact contacts = 1;
 }
 
 message Value {
