@@ -2,7 +2,6 @@ package contact
 
 import (
 	"fmt"
-	"sort"
 	"github.com/mjolnir92/kdfs/kademliaid"
 )
 
@@ -26,4 +25,19 @@ func (contact *T) Less(otherContact *T) bool {
 
 func (contact *T) String() string {
 	return fmt.Sprintf(`contact("%s", "%s")`, contact.ID, contact.Address)
+}
+
+// This implements sort.Interface for []T based on the kademlia ID
+type ByID []T
+
+func (a ByID) Len() int {
+	return len(a)
+}
+
+func (a ByID) Swap(i, j int) {
+	a[i], a[j] = a[j], a[i]
+}
+
+func (a ByID) Less(i, j int) bool {
+	return a[i].Less(&a[j])
 }
