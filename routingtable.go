@@ -1,4 +1,4 @@
-package routingTable
+package routingtable
 
 import (
 	"sync"

@@ -1,9 +1,8 @@
-package d7024e
+package kademlia
 
 import (
-	"config"
-	"contact"
-	"routingtable"
+	"github.com/mjolnir92/kdfs/contact"
+	"github.com/mjolni92/kdfs/routingtable"
 )
 
 const {
