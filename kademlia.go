@@ -6,11 +6,15 @@ import (
 	"routingtable"
 )
 
+const {
+	ALPHA = 3
+}
+
 type Kademlia struct {
 }
 
 func (kademlia *Kademlia) LookupContact(target *Contact) {
-	closestNodes := routingtable.FindClosestContacts(target.ID, config.ALPHA)
+	closestNodes := routingtable.FindClosestContacts(target.ID, ALPHA)
 	for _, node := range closestNodes {
 		//TODO: Enqueue FIND_NODE call to <node>
 	}
