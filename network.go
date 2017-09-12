@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"log"
 	"time"
-	"kademliaid"
+	"github.com/mjolnir92/kdfs/kademliaid"
 	"github.com/vmihailenco/msgpack"
 )
 

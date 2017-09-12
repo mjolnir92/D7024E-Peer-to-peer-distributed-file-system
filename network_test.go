@@ -2,7 +2,7 @@ package network
 
 import (
 	"testing"
-	"kademliaid"
+	"github.com/mjolnir92/kdfs/kademliaid"
 )
 
 func TestHello(t *testing.T) {
