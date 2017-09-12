@@ -1,10 +1,20 @@
 package d7024e
 
+import (
+	"config"
+	"contact"
+	"routingtable"
+)
+
 type Kademlia struct {
 }
 
 func (kademlia *Kademlia) LookupContact(target *Contact) {
-	// TODO
+	closestNodes := routingtable.FindClosestContacts(target.ID, config.ALPHA)
+	for _, node := range closestNodes {
+		//TODO: Enqueue FIND_NODE call to <node>
+	}
+	//TODO: Repeat until response from k closest, remove queried from consideration
 }
 
 func (kademlia *Kademlia) LookupData(hash string) {
