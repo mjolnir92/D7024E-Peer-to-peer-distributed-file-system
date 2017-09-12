@@ -5,17 +5,18 @@ import (
 	"fmt"
 	"log"
 	"time"
-	"kademliaid"
+	"github.com/mjolnir92/kdfs/kademliaid"
+	"github.com/mjolnir92/kdfs/contact"
 	"github.com/vmihailenco/msgpack"
 )
 
-type Network struct {
-	id_local *kademliaid.KademliaID
+type T struct {
+	id_local *kademliaid.T
 	timeout time.Duration
 }
 
-func New(timeoutms int64, id_local *kademliaid.KademliaID) Network {
-	return Network{timeout: timeoutms * time.Millisecond, id_local: id_local}
+func New(timeoutms int64, id_local *kademliaid.T) T {
+	return T{timeout: timeoutms * time.Millisecond, id_local: id_local}
 }
 
 const (
@@ -27,7 +28,7 @@ const (
 
 type RPC struct {
 	rpc_type int
-	sender_id kademliaid.KademliaID
+	sender_id kademliaid.T
 }
 
 type RPCPing struct {
@@ -36,12 +37,12 @@ type RPCPing struct {
 
 type RPCFindNode struct {
 	RPC
-	find_id kademliaid.KademliaID
+	find_id kademliaid.T
 }
 
 type RPCFindValue struct {
 	RPC
-	find_id kademliaid.KademliaID
+	find_id kademliaid.T
 }
 
 type RPCStore struct {
@@ -68,7 +69,7 @@ func Listen(ip string, port int) {
 	// unreachable
 }
 
-func (network *Network) send(contact *Contact, msg []byte) (net.UDPConn, error) {
+func (nw *T) send(contact *contact.T, msg []byte) (net.UDPConn, error) {
 	// TODO: contact should probably store the resolved address already
 	// right now it's a string (who wrote this sample code?!)
 	raddr := net.ResolveUDPAddr("udp", contact.Address)
@@ -85,10 +86,10 @@ func (network *Network) send(contact *Contact, msg []byte) (net.UDPConn, error) 
 	return conn, nil
 }
 
-func (network *Network) receive(conn net.UDPConn) ([]byte, error) {
+func (nw *T) receive(conn net.UDPConn) ([]byte, error) {
 	// TODO: make this buffer size configurable somewhere
 	p := make([]byte, 2048)
-	conn.SetReadDeadline(time.Now().Add(network.timeout))
+	conn.SetReadDeadline(time.Now().Add(nw.timeout))
 	_, err = bufio.NewReader(conn).Read(p)
 	if err != nil {
 		return nil, err
@@ -96,7 +97,7 @@ func (network *Network) receive(conn net.UDPConn) ([]byte, error) {
 	return p, nil
 }
 
-func (network *Network) rpc(contact *Contact, msg *RPC) (map[string]interface{}, error) {
+func (nw *T) rpc(contact *contact.T, msg *RPC) (map[string]interface{}, error) {
 	b, err := msgpack.Marshal(&msg)
 	if err != nil {
 		log.Printf("Error marshalling FindNode RPC: %v\n", err)
@@ -120,8 +121,8 @@ func (network *Network) rpc(contact *Contact, msg *RPC) (map[string]interface{},
 	return response, nil
 }
 
-func (network *Network) Ping(contact *Contact) error {
-	msg := &RPCPing{rpc_type: PING, sender_id: network.id}
+func (nw *T) Ping(contact *contact.T) error {
+	msg := &RPCPing{rpc_type: PING, sender_id: nw.id}
 	response, err := rpc(contact, msg)
 	if err != nil {
 		return err
@@ -130,8 +131,8 @@ func (network *Network) Ping(contact *Contact) error {
 	return nil
 }
 
-func (network *Network) FindNode(contact *Contact, findID *kademliaid.KademliaID) ([]Contact, error) {
-	msg := &RPCFindNode{rpc_type: FIND_NODE, sender_id: network.id, find_id: *findID}
+func (nw *T) FindNode(contact *contact.T, findID *kademliaid.T) ([]contact.T, error) {
+	msg := &RPCFindNode{rpc_type: FIND_NODE, sender_id: nw.id, find_id: *findID}
 	response, err := rpc(contact, msg)
 	if err != nil {
 		return err
@@ -139,8 +140,8 @@ func (network *Network) FindNode(contact *Contact, findID *kademliaid.KademliaID
 	// TODO: do something with response and return
 }
 
-func (network *Network) FindValue(contact *Contact, findID *kademliaid.KademliaID) {
-	msg := &RPCFindValue{rpc_type: FIND_VALUE, sender_id: network.id, find_id: *findID}
+func (nw *T) FindValue(contact *contact.T, findID *kademliaid.T) {
+	msg := &RPCFindValue{rpc_type: FIND_VALUE, sender_id: nw.id, find_id: *findID}
 	response, err := rpc(contact, msg)
 	if err != nil {
 		return err
@@ -148,8 +149,8 @@ func (network *Network) FindValue(contact *Contact, findID *kademliaid.KademliaI
 	// TODO: do something with response and return
 }
 
-func (network *Network) Store(data []byte) error {
-	msg := &RPCStore{rpc_type: STORE, sender_id: network.id, store_value: data}
+func (nw *T) Store(data []byte) error {
+	msg := &RPCStore{rpc_type: STORE, sender_id: nw.id, store_value: data}
 	// not using rpc() since this rpc doesn't need a response
 	b, err := msgpack.Marshal(&msg)
 	if err != nil {
@@ -190,12 +191,12 @@ func storeResponse(args *map[string]interface{}) {
 	// TODO: actually store the value from args
 }
 
-func (network *Network) pingResponse(raddr *net.UDPAddr) {
+func (nw *T) pingResponse(raddr *net.UDPAddr) {
 }
 
-func (network *Network) storeResponse() {
+func (nw *T) storeResponse() {
 	// TODO: try to find it in the kv store
 	// return
 	// if we can't find it, just treat it as a FindNode
-	network.FindNode(contact, findID)
+	nw.FindNode(contact, findID)
 }
