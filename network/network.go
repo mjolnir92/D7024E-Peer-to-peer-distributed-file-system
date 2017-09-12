@@ -69,10 +69,10 @@ func Listen(ip string, port int) {
 	// unreachable
 }
 
-func (nw *T) send(contact *contact.T, msg []byte) (net.UDPConn, error) {
+func (nw *T) send(c *contact.T, msg []byte) (net.UDPConn, error) {
 	// TODO: contact should probably store the resolved address already
 	// right now it's a string (who wrote this sample code?!)
-	raddr := net.ResolveUDPAddr("udp", contact.Address)
+	raddr := net.ResolveUDPAddr("udp", c.Address)
 	// TODO: would it be safe to use the port we are listening on?
 	// net.Conn docs seem ok with it:
 	// Multiple goroutines may invoke methods on a Conn simultaneously.
@@ -97,13 +97,13 @@ func (nw *T) receive(conn net.UDPConn) ([]byte, error) {
 	return p, nil
 }
 
-func (nw *T) rpc(contact *contact.T, msg *RPC) (map[string]interface{}, error) {
+func (nw *T) rpc(c *contact.T, msg *RPC) (map[string]interface{}, error) {
 	b, err := msgpack.Marshal(&msg)
 	if err != nil {
 		log.Printf("Error marshalling FindNode RPC: %v\n", err)
 		return nil, err
 	}
-	conn, err := send(contact, b)
+	conn, err := send(c, b)
 	if err != nil {
 		return nil, err
 	}
@@ -121,9 +121,9 @@ func (nw *T) rpc(contact *contact.T, msg *RPC) (map[string]interface{}, error) {
 	return response, nil
 }
 
-func (nw *T) Ping(contact *contact.T) error {
+func (nw *T) Ping(c *contact.T) error {
 	msg := &RPCPing{rpc_type: PING, sender_id: nw.id}
-	response, err := rpc(contact, msg)
+	response, err := rpc(c, msg)
 	if err != nil {
 		return err
 	}
@@ -131,18 +131,18 @@ func (nw *T) Ping(contact *contact.T) error {
 	return nil
 }
 
-func (nw *T) FindNode(contact *contact.T, findID *kademliaid.T) ([]contact.T, error) {
+func (nw *T) FindNode(c *contact.T, findID *kademliaid.T) ([]contact.T, error) {
 	msg := &RPCFindNode{rpc_type: FIND_NODE, sender_id: nw.id, find_id: *findID}
-	response, err := rpc(contact, msg)
+	response, err := rpc(c, msg)
 	if err != nil {
 		return err
 	}
 	// TODO: do something with response and return
 }
 
-func (nw *T) FindValue(contact *contact.T, findID *kademliaid.T) {
+func (nw *T) FindValue(c *contact.T, findID *kademliaid.T) {
 	msg := &RPCFindValue{rpc_type: FIND_VALUE, sender_id: nw.id, find_id: *findID}
-	response, err := rpc(contact, msg)
+	response, err := rpc(c, msg)
 	if err != nil {
 		return err
 	}
@@ -157,7 +157,7 @@ func (nw *T) Store(data []byte) error {
 		log.Printf("Error marshalling FindNode RPC: %v\n", err)
 		return err
 	}
-	conn, err := send(contact, b)
+	conn, err := send(c, b)
 	if err != nil {
 		return err
 	}
@@ -194,9 +194,12 @@ func storeResponse(args *map[string]interface{}) {
 func (nw *T) pingResponse(raddr *net.UDPAddr) {
 }
 
-func (nw *T) storeResponse() {
+func (nw *T) findValueResponse(raddr *net.UDPAddr)) {
 	// TODO: try to find it in the kv store
 	// return
 	// if we can't find it, just treat it as a FindNode
-	nw.FindNode(contact, findID)
+	nw.findNodeResponse(c, findID)
+}
+
+func (nw *T) findNodeResponse(raddr *net.UDPAddr) {
 }
