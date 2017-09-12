@@ -9,10 +9,10 @@ const {
 	ALPHA = 3
 }
 
-type Kademlia struct {
+type T struct {
 }
 
-func (kademlia *Kademlia) LookupContact(target *Contact) {
+func (kademlia *T) LookupContact(target *contact.T) {
 	closestNodes := routingtable.FindClosestContacts(target.ID, ALPHA)
 	for _, node := range closestNodes {
 		//TODO: Enqueue FIND_NODE call to <node>
@@ -20,10 +20,10 @@ func (kademlia *Kademlia) LookupContact(target *Contact) {
 	//TODO: Repeat until response from k closest, remove queried from consideration
 }
 
-func (kademlia *Kademlia) LookupData(hash string) {
+func (kademlia *T) LookupData(hash string) {
 	// TODO
 }
 
-func (kademlia *Kademlia) Store(data []byte) {
+func (kademlia *T) Store(data []byte) {
 	// TODO
 }
