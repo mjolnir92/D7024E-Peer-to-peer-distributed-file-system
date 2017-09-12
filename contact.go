@@ -3,54 +3,27 @@ package contact
 import (
 	"fmt"
 	"sort"
+	"github.com/mjolnir92/kdfs/kademliaid"
 )
 
-type Contact struct {
-	ID       *KademliaID
+type T struct {
+	ID       *kademliaid.T
 	Address  string
-	distance *KademliaID
+	distance *kademliaid.T
 }
 
-func NewContact(id *KademliaID, address string) Contact {
-	return Contact{id, address, nil}
+func New(id *kademliaid.T, address string) T {
+	return T{id, address, nil}
 }
 
-func (contact *Contact) CalcDistance(target *KademliaID) {
+func (contact *T) CalcDistance(target *kademliaid.T) {
 	contact.distance = contact.ID.CalcDistance(target)
 }
 
-func (contact *Contact) Less(otherContact *Contact) bool {
+func (contact *T) Less(otherContact *T) bool {
 	return contact.distance.Less(otherContact.distance)
 }
 
-func (contact *Contact) String() string {
+func (contact *T) String() string {
 	return fmt.Sprintf(`contact("%s", "%s")`, contact.ID, contact.Address)
-}
-
-type ContactCandidates struct {
-	contacts []Contact
-}
-
-func (candidates *ContactCandidates) Append(contacts []Contact) {
-	candidates.contacts = append(candidates.contacts, contacts...)
-}
-
-func (candidates *ContactCandidates) GetContacts(count int) []Contact {
-	return candidates.contacts[:count]
-}
-
-func (candidates *ContactCandidates) Sort() {
-	sort.Sort(candidates)
-}
-
-func (candidates *ContactCandidates) Len() int {
-	return len(candidates.contacts)
-}
-
-func (candidates *ContactCandidates) Swap(i, j int) {
-	candidates.contacts[i], candidates.contacts[j] = candidates.contacts[j], candidates.contacts[i]
-}
-
-func (candidates *ContactCandidates) Less(i, j int) bool {
-	return candidates.contacts[i].Less(&candidates.contacts[j])
 }

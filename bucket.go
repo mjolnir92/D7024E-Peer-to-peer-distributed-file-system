@@ -2,22 +2,24 @@ package bucket
 
 import (
 	"container/list"
+	"github.com/mjolnir92/kdfs/contact"
+	"github.com/mjolnir92/kdfs/kademliaid"
 )
 
-type bucket struct {
+type T struct {
 	list *list.List
 }
 
-func newBucket() *bucket {
-	bucket := &bucket{}
+func New() *T {
+	bucket := &T{}
 	bucket.list = list.New()
 	return bucket
 }
 
-func (bucket *bucket) AddContact(contact Contact) {
+func (bucket *T) AddContact(contact contact.T) {
 	var element *list.Element
 	for e := bucket.list.Front(); e != nil; e = e.Next() {
-		nodeID := e.Value.(Contact).ID
+		nodeID := e.Value.(contact.T).ID
 
 		if (contact).ID.Equals(nodeID) {
 			element = e
@@ -33,11 +35,11 @@ func (bucket *bucket) AddContact(contact Contact) {
 	}
 }
 
-func (bucket *bucket) GetContactAndCalcDistance(target *KademliaID) []Contact {
-	var contacts []Contact
+func (bucket *T) GetContactAndCalcDistance(target *kademliaid.T) []contact.T {
+	var contacts []contact.T
 
 	for elt := bucket.list.Front(); elt != nil; elt = elt.Next() {
-		contact := elt.Value.(Contact)
+		contact := elt.Value.(contact.T)
 		contact.CalcDistance(target)
 		contacts = append(contacts, contact)
 	}
@@ -45,6 +47,6 @@ func (bucket *bucket) GetContactAndCalcDistance(target *KademliaID) []Contact {
 	return contacts
 }
 
-func (bucket *bucket) Len() int {
+func (bucket *T) Len() int {
 	return bucket.list.Len()
 }
