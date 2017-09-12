@@ -10,11 +10,12 @@ import (
 )
 
 type Network struct {
+	id_local *kademliaid.KademliaID
 	timeout time.Duration
 }
 
-func New(timeoutms int64) Network {
-	return Network{timeout: timeoutms * time.Millisecond}
+func New(timeoutms int64, id_local *kademliaid.KademliaID) Network {
+	return Network{timeout: timeoutms * time.Millisecond, id_local: id_local}
 }
 
 const (
@@ -87,7 +88,7 @@ func (network *Network) send(contact *Contact, msg []byte) (net.UDPConn, error) 
 func (network *Network) receive(conn net.UDPConn) ([]byte, error) {
 	// TODO: make this buffer size configurable somewhere
 	p := make([]byte, 2048)
-	conn.SetReadDeadline(network.timeout)
+	conn.SetReadDeadline(time.Now().Add(network.timeout))
 	_, err = bufio.NewReader(conn).Read(p)
 	if err != nil {
 		return nil, err
