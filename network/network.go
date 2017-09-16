@@ -7,11 +7,13 @@ import (
 	"time"
 	"github.com/mjolnir92/kdfs/kademliaid"
 	"github.com/mjolnir92/kdfs/contact"
+	"github.com/mjolnir92/kdfs/routingtable"
 	"github.com/vmihailenco/msgpack"
 )
 
 type T struct {
 	id_local *kademliaid.T
+	routingtable *routingtable.T
 	timeout time.Duration
 }
 
@@ -202,4 +204,6 @@ func (nw *T) findValueResponse(raddr *net.UDPAddr)) {
 }
 
 func (nw *T) findNodeResponse(raddr *net.UDPAddr) {
+	target := (*args)["find_id"].(kademliaid.T)
+	nw.routingtable.FindClosestContacts(&target)
 }
