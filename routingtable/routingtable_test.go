@@ -8,7 +8,7 @@ import (
 )
 
 func TestRoutingTable(t *testing.T) {
-	rt := New(contact.New(kademliaid.New("FFFFFFFF00000000000000000000000000000000"), "localhost:8000"))
+	rt := New(contact.New(kademliaid.New("FFFFFFFF00000000000000000000000000000000"), "localhost:8000"), 20)
 
 	rt.AddContact(contact.New(kademliaid.New("FFFFFFFF00000000000000000000000000000000"), "localhost:8001"))
 	rt.AddContact(contact.New(kademliaid.New("1111111100000000000000000000000000000000"), "localhost:8002"))

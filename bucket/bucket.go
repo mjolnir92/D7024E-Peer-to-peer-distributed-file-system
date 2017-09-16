@@ -8,27 +8,29 @@ import (
 
 type T struct {
 	list *list.List
+	bucketSize int
 }
 
-func New() *T {
+func New(bucketSize int) *T {
 	bucket := &T{}
 	bucket.list = list.New()
+	bucket.bucketSize = bucketSize
 	return bucket
 }
 
-func (bucket *T) AddContact(contact contact.T) {
+func (bucket *T) AddContact(c contact.T) {
 	var element *list.Element
 	for e := bucket.list.Front(); e != nil; e = e.Next() {
 		nodeID := e.Value.(contact.T).ID
 
-		if (contact).ID.Equals(nodeID) {
+		if (c).ID.Equals(nodeID) {
 			element = e
 		}
 	}
 
 	if element == nil {
-		if bucket.list.Len() < bucketSize {
-			bucket.list.PushFront(contact)
+		if bucket.list.Len() < bucket.bucketSize {
+			bucket.list.PushFront(c)
 		}
 	} else {
 		bucket.list.MoveToFront(element)
