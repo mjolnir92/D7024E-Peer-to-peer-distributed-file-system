@@ -3,7 +3,6 @@ package network
 import (
 	"testing"
 	"time"
-	"log"
 	"github.com/mjolnir92/kdfs/kademliaid"
 	"github.com/mjolnir92/kdfs/contact"
 )
