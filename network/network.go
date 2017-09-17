@@ -6,7 +6,6 @@ import (
 	"log"
 	"time"
 	"bufio"
-	"reflect"
 	"github.com/mjolnir92/kdfs/kademliaid"
 	"github.com/mjolnir92/kdfs/contact"
 	"github.com/mjolnir92/kdfs/routingtable"
@@ -14,20 +13,25 @@ import (
 )
 
 type T struct {
+	timeout time.Duration
 	id *kademliaid.T
 	routingtable *routingtable.T
-	timeout time.Duration
+	conn *net.UDPConn
 }
 
 func New(timeoutms int64, id *kademliaid.T) T {
+	// TODO: do more of the setup here
 	return T{timeout: time.Duration(timeoutms) * time.Millisecond, id: id}
 }
 
 const (
 	PING = 0
-	FIND_NODE = 1
-	FIND_VALUE = 2
-	STORE = 3
+	PING_RESPONSE = 1
+	FIND_NODE = 2
+	FIND_NODE_RESPONSE = 3
+	FIND_VALUE = 4
+	FIND_VALUE_RESPONSE = 5
+	STORE = 6
 )
 
 // type RPCHeader struct {
@@ -36,6 +40,11 @@ const (
 // }
 
 type RPCPing struct {
+	RPCType int
+	SenderID kademliaid.T
+}
+
+type RPCPingResponse struct {
 	RPCType int
 	SenderID kademliaid.T
 }
@@ -61,18 +70,17 @@ type RPCStore struct {
 func (nw *T) Listen(ip string, port int) {
 	b := make([]byte, 2048)
 	addrStr := fmt.Sprintf("%s:%d", ip, port)
-	addr, err := net.ResolveUDPAddr("udp", addrStr)
+	laddr, err := net.ResolveUDPAddr("udp", addrStr)
 	if err != nil {
-		log.Fatalf("Error listening on %v: %v\n", addr, err)
+		log.Fatalf("Error listening on %v: %v\n", laddr, err)
 	}
-	srv, err := net.ListenUDP("udp", addr)
+	conn, err := net.ListenUDP("udp", laddr)
 	if err != nil {
-		log.Fatalf("Error listening on %v: %v\n", addr, err)
+		log.Fatalf("Error listening on %v: %v\n", laddr, err)
 	}
+	nw.conn = conn
 	for {
-		log.Println("Server is ready to listen")
-		_, raddr, err := srv.ReadFromUDP(b)
-		log.Println("Server read something from UDP")
+		_, raddr, err := conn.ReadFromUDP(b)
 		if err != nil {
 			log.Printf("Error reading UDP: %v", err)
 			continue
@@ -99,13 +107,11 @@ func (nw *T) send(c *contact.T, msg []byte) (*net.UDPConn, error) {
 		// TODO: do we need to close conn here too? might depend on the error
 		return nil, err
 	}
-	log.Println("DEBUG: write to udp.")
 	_, err = conn.Write(msg)
 	if err != nil {
 		conn.Close()
 		return nil, err
 	}
-	log.Println("DEBUG: write to udp ok.")
 	return conn, nil
 }
 
@@ -146,7 +152,6 @@ func (nw *T) rpc(c *contact.T, msg interface{}) (map[string]interface{}, error) 
 
 func (nw *T) Ping(c *contact.T) error {
 	msg := RPCPing{RPCType: PING, SenderID: *nw.id}
-	log.Println("Sending Ping RPC")
 	_, err := nw.rpc(c, msg)
 	if err != nil {
 		return err
@@ -225,8 +230,17 @@ func (nw *T) storeResponse(args *map[string]interface{}) {
 }
 
 func (nw *T) pingResponse(raddr *net.UDPAddr) {
-	log.Println("pingResponse was called")
-	// TODO send a response so the caller doesn't time out
+  msg := RPCPingResponse{RPCType: PING_RESPONSE, SenderID: *nw.id}
+	b, err := msgpack.Marshal(msg)
+	if err != nil {
+		log.Printf("Error marshalling PingResponse: %v\n", err)
+		return
+	}
+	_, err = nw.conn.WriteTo(b, raddr)
+	if err != nil {
+		log.Printf("Error writing PingResponse: %v\n", err)
+		return
+	}
 }
 
 func (nw *T) findValueResponse(args *map[string]interface{}, raddr *net.UDPAddr) {
