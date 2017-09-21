@@ -9,6 +9,7 @@ import (
 	"github.com/mjolnir92/kdfs/kademliaid"
 	"github.com/mjolnir92/kdfs/contact"
 	"github.com/mjolnir92/kdfs/routingtable"
+	"github.com/mjolnir92/kdfs/kvstore"
 	"github.com/vmihailenco/msgpack"
 )
 
@@ -16,6 +17,7 @@ type T struct {
 	timeout time.Duration
 	id *kademliaid.T
 	routingtable *routingtable.T
+	kvstore *kvstore.T
 	conn *net.UDPConn
 }
 
@@ -34,11 +36,6 @@ const (
 	STORE = 6
 )
 
-// type RPCHeader struct {
-// 	RPCType int
-// 	Sender kademliaid.T
-// }
-
 type RPCPing struct {
 	RPCType int
 	SenderID kademliaid.T
@@ -55,10 +52,22 @@ type RPCFindNode struct {
 	FindID kademliaid.T
 }
 
+type RPCFindNodeResponse struct {
+	RPCType int
+	SenderID kademliaid.T
+	Contacts []contact.T
+}
+
 type RPCFindValue struct {
 	RPCType int
 	SenderID kademliaid.T
 	FindID kademliaid.T
+}
+
+type RPCFindValueResponse struct {
+	RPCType int
+	SenderID kademliaid.T
+	Value []byte
 }
 
 type RPCStore struct {
@@ -98,9 +107,6 @@ func (nw *T) send(c *contact.T, msg []byte) (*net.UDPConn, error) {
 		return nil, err
 		log.Printf("Could not resolve address %v: %v", c.Address, err)
 	}
-	// TODO: would it be safe to use the port we are listening on?
-	// net.Conn docs seem ok with it:
-	// Multiple goroutines may invoke methods on a Conn simultaneously.
 	conn, err := net.DialUDP("udp", nil, raddr)
 	if err != nil {
 		log.Printf("Error dialing %v: %v\n", raddr, err)
@@ -113,6 +119,20 @@ func (nw *T) send(c *contact.T, msg []byte) (*net.UDPConn, error) {
 		return nil, err
 	}
 	return conn, nil
+}
+
+func (nw *T) respond(msg interface{}, raddr *net.UDPAddr) error {
+	b, err := msgpack.Marshal(msg)
+	if err != nil {
+		log.Printf("Error marshalling PingResponse: %v\n", err)
+		return err
+	}
+	_, err = nw.conn.WriteTo(b, raddr)
+	if err != nil {
+		log.Printf("Error writing PingResponse: %v\n", err)
+		return err
+	}
+	return nil
 }
 
 func (nw *T) receive(conn *net.UDPConn) ([]byte, error) {
@@ -170,15 +190,22 @@ func (nw *T) FindNode(c *contact.T, findID *kademliaid.T) ([]contact.T, error) {
 	return contacts, nil
 }
 
-func (nw *T) FindValue(c *contact.T, findID *kademliaid.T) error {
+func (nw *T) FindValue(c *contact.T, findID *kademliaid.T) ([]byte, []contact.T, bool, error) {
 	msg := RPCFindValue{RPCType: FIND_VALUE, SenderID: *nw.id, FindID: *findID}
 	// response, err := nw.rpc(c, msg)
-	_, err := nw.rpc(c, msg) // just to mute errors until we use response
+	response, err := nw.rpc(c, msg) // just to mute errors until we use response
 	if err != nil {
-		return err
+		return nil, nil, false, err
 	}
-	// TODO: do something with response and return
-	return nil
+	// TODO: remove assumption that it is int8 after marshalling
+	rpcType := int(response["RPCType"].(int8))
+	if rpcType == FIND_VALUE_RESPONSE {
+		val := response["Value"].([]byte)
+		return val, nil, true, nil
+	} else {
+		contacts := response["Contacts"].([]contact.T)
+		return nil, contacts, false, nil
+	}
 }
 
 func (nw *T) Store(c *contact.T, data []byte) error {
@@ -222,38 +249,43 @@ func (nw *T) resolveRPC(message []byte, raddr *net.UDPAddr) {
 		return
 	}
 	// TODO: update our routing table
+	// this should be a function RPC -> raddr -> contact
+	// senderID := args["SenderID"].(kademliaid.T)
+	// senderContact := contact.New(senderID, raddr)
+	// nw.routingtable.Insert(senderContact)
 }
 
 func (nw *T) storeResponse(args *map[string]interface{}) {
+	// TODO: use the kvstore Value type
+	val := (*args)["Value"].([]byte)
+	nw.kvstore.Store(val)
 	// no confirmation is sent
-	// TODO: actually store the value from args
 }
 
 func (nw *T) pingResponse(raddr *net.UDPAddr) {
-  msg := RPCPingResponse{RPCType: PING_RESPONSE, SenderID: *nw.id}
-	b, err := msgpack.Marshal(msg)
+	msg := RPCPingResponse{RPCType: PING_RESPONSE, SenderID: *nw.id}
+	err := nw.respond(msg, raddr)
 	if err != nil {
-		log.Printf("Error marshalling PingResponse: %v\n", err)
-		return
-	}
-	_, err = nw.conn.WriteTo(b, raddr)
-	if err != nil {
-		log.Printf("Error writing PingResponse: %v\n", err)
-		return
+		log.Println("Failed to respond to ping: %v\n", err)
 	}
 }
 
 func (nw *T) findValueResponse(args *map[string]interface{}, raddr *net.UDPAddr) {
-	// TODO: try to find it in the kv store
-	// return
-	// if we can't find it, just treat it as a FindNode
-	nw.findNodeResponse(args, raddr)
+	target := (*args)["FindID"].(kademliaid.T)
+	val, ok := nw.kvstore.Get(target)
+	if ok {
+		// TODO: drop the pinned state
+		msg := RPCFindValueResponse{RPCType: FIND_VALUE_RESPONSE, SenderID: *nw.id, Value: val}
+		nw.respond(msg, raddr)
+		return
+	} else {
+		// if we can't find it, just treat it as a FindNode
+		nw.findNodeResponse(args, raddr)
+	}
 }
 
 func (nw *T) findNodeResponse(args *map[string]interface{}, raddr *net.UDPAddr) {
 	target := (*args)["FindID"].(kademliaid.T)
-	// TODO: make it the responsibility of routingtable to decide how many
-	// contacts we get back
-	log.Println("WARN: number of contacts to return should not be my problem")
-	nw.routingtable.FindClosestContacts(&target, 20)
+	contacts := nw.routingtable.FindKClosestContacts(&target)
+	msg := RPCFindNodeResponse{RPCType: FIND_NODE_RESPONSE, SenderID: *nw.id, Contacts: contacts}
 }

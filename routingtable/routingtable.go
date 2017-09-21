@@ -62,6 +62,10 @@ func (routingTable *T) FindClosestContacts(target *kademliaid.T, count int) []co
 	return candidates[:count]
 }
 
+func (routingTable *T) FindKClosestContacts(target *kademliaid.T) []contact.T {
+	return routingTable.FindClosestContacts(target, bucketSize)
+}
+
 func (routingTable *T) getBucketIndex(id *kademliaid.T) int {
 	distance := id.CalcDistance(routingTable.me.ID)
 	for i := 0; i < kademliaid.IDLength; i++ {
