@@ -1,6 +1,7 @@
 package kademliaid
 
 import (
+	"crypto/sha1"
 	"encoding/hex"
 	"math/rand"
 )
@@ -17,6 +18,12 @@ func New(data string) *T {
 		newKademliaID[i] = decoded[i]
 	}
 
+	return &newKademliaID
+}
+
+func NewHash(data []byte) *T {
+	newKademliaID := T{}
+	newKademliaID = sha1.Sum(data)
 	return &newKademliaID
 }
 
