@@ -75,6 +75,22 @@ func TestRPCs(t *testing.T) {
 			t.Error("Didn't get the data that was stored. Expected\n%v\nGot\n%v\n", stored_val.GetData(), data)
 		}
 	})
+	t.Run("Store", func(t *testing.T) {
+		stored_val := kvstore.NewValue(true, []byte{255,240,0})
+		id_val := kademliaid.NewHash(stored_val.GetData())
+		if _, ok := nw_server.kvstore.Get(*id_val); ok {
+			t.Error("Test setup for Store is flawed: the value was already stored on server.")
+		}
+		nw_client.Store(&ct_server, stored_val)
+		// Wait so server has a chance to process the RPC
+		time.Sleep(50 * time.Millisecond)
+		val, ok := nw_server.kvstore.Get(*id_val)
+		if !ok {
+			t.Error("The key was not stored after Store RPC")
+		} else if val.GetPin() != stored_val.GetPin() {
+			t.Error("The stored value has the wrong pin state")
+		}
+	})
 }
 
 func TestMarshal(t *testing.T) {

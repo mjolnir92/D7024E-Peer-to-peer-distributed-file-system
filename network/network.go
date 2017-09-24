@@ -209,8 +209,8 @@ func (nw *T) FindValue(c *contact.T, findID *kademliaid.T) ([]byte, []contact.T,
 	return res.ValueData, nil, true, nil
 }
 
-func (nw *T) Store(c *contact.T, val kvstore.Value) error {
-	msg := RPCStore{RPCType: STORE, SenderID: *nw.id, Value: val}
+func (nw *T) Store(c *contact.T, val *kvstore.Value) error {
+	msg := RPCStore{RPCType: STORE, SenderID: *nw.id, Value: *val}
 	// not using rpc() since this rpc doesn't need a response
 	b, err := msgpack.Marshal(msg)
 	if err != nil {
@@ -263,6 +263,8 @@ func (nw *T) storeResponse(b []byte) {
 		log.Printf("Failed to unmarshal into struct")
 		return
 	}
+	// can't deserialize into private fields of the struct
+	log.Printf("Hey I am trying to store %v", msg.Value)
 	nw.kvstore.Store(msg.Value)
 	// no confirmation is sent
 }
