@@ -21,9 +21,9 @@ type T struct {
 	conn *net.UDPConn
 }
 
-func New(timeoutms int64, id *kademliaid.T, rt *routingtable.T) T {
+func New(timeoutms int64, id *kademliaid.T, rt *routingtable.T, kvs *kvstore.T) T {
 	// TODO: do more of the setup here
-	return T{timeout: time.Duration(timeoutms) * time.Millisecond, id: id, routingtable: rt}
+	return T{timeout: time.Duration(timeoutms) * time.Millisecond, id: id, routingtable: rt, kvstore: kvs}
 }
 
 const (
@@ -241,15 +241,9 @@ func (nw *T) resolveRPC(message []byte, raddr *net.UDPAddr) {
 	case FIND_NODE:
 		nw.findNodeResponse(message, raddr)
 	case FIND_VALUE:
-		// var msg RPCFindValue
-		// err := msgpack.Unmarshal(message, &msg)
-		// if err != nil {
-		// 	log.Printf("Failed to unmarshal into struct")
-		// 	return
-		// }
-		nw.findValueResponse(&args, raddr)
+		nw.findValueResponse(message, raddr)
 	case STORE:
-		nw.storeResponse(&args)
+		nw.storeResponse(message)
 	default:
 		log.Printf("Unknown RPC: %v\n", args["RPCType"])
 		// garbage message, don't update routing table
@@ -262,9 +256,14 @@ func (nw *T) resolveRPC(message []byte, raddr *net.UDPAddr) {
 	// nw.routingtable.Insert(senderContact)
 }
 
-func (nw *T) storeResponse(args *map[string]interface{}) {
-	val := (*args)["Value"].(kvstore.Value)
-	nw.kvstore.Store(val)
+func (nw *T) storeResponse(b []byte) {
+	var msg RPCStore
+	err := msgpack.Unmarshal(b, &msg)
+	if err != nil {
+		log.Printf("Failed to unmarshal into struct")
+		return
+	}
+	nw.kvstore.Store(msg.Value)
 	// no confirmation is sent
 }
 
@@ -276,12 +275,15 @@ func (nw *T) pingResponse(raddr *net.UDPAddr) {
 	}
 }
 
-func (nw *T) findValueResponse(args *map[string]interface{}, raddr *net.UDPAddr) {
-	// TODO: panic: interface conversion: interface {} is []uint8, not kademliaid.T
-	target := (*args)["FindID"].(kademliaid.T)
-	val, ok := nw.kvstore.Get(target)
+func (nw *T) findValueResponse(b []byte, raddr *net.UDPAddr) {
+	var msg RPCFindValue
+	err := msgpack.Unmarshal(b, &msg)
+	if err != nil {
+		log.Printf("Failed to unmarshal into struct")
+		return
+	}
+	val, ok := nw.kvstore.Get(msg.FindID)
 	if ok {
-		// TODO: drop the pinned state
 		msg := RPCFindValueResponse{RPCType: FIND_VALUE_RESPONSE, SenderID: *nw.id, ValueData: val.GetData()}
 		err := nw.respond(msg, raddr)
 		if err != nil {
@@ -289,7 +291,12 @@ func (nw *T) findValueResponse(args *map[string]interface{}, raddr *net.UDPAddr)
 		}
 	} else {
 		// if we can't find it, just treat it as a FindNode
-		// nw.findNodeResponse(args, raddr)
+		contacts := nw.routingtable.FindKClosestContacts(&msg.FindID)
+		response := RPCFindValueResponse{RPCType: FIND_VALUE_RESPONSE, SenderID: *nw.id, Contacts: contacts}
+		err = nw.respond(response, raddr)
+		if err != nil {
+			log.Println("Failed to respond with contacts: %v\n", err)
+		}
 	}
 }
 
