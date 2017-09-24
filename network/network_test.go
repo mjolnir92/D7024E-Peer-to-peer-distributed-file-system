@@ -63,7 +63,7 @@ func TestRPCs(t *testing.T) {
 			t.Errorf("Value returned an unexpected contact:\nExpected:\n%v\nGot:\n%v\n", ct_client, contacts[0])
 		}
 		// value is stored on the server
-		nw_server.kvstore.Store(*stored_val)
+		nw_server.kvstore.Store(stored_val)
 		data, contacts, gotData, err = nw_client.FindValue(&ct_server, id_val)
 		if err != nil {
 			t.Error("FindValue returned an error:", err)
@@ -81,7 +81,7 @@ func TestRPCs(t *testing.T) {
 		if _, ok := nw_server.kvstore.Get(*id_val); ok {
 			t.Error("Test setup for Store is flawed: the value was already stored on server.")
 		}
-		nw_client.Store(&ct_server, stored_val)
+		nw_client.Store(&ct_server, &stored_val)
 		// Wait so server has a chance to process the RPC
 		time.Sleep(50 * time.Millisecond)
 		val, ok := nw_server.kvstore.Get(*id_val)

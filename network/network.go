@@ -39,6 +39,11 @@ const (
 // TODO: replace SenderID with SenderContact
 // some messages are sent from a different port
 
+type RPCHeader struct {
+	RPCType int
+	SenderID kademliaid.T
+}
+
 type RPCPing struct {
 	RPCType int
 	SenderID kademliaid.T
@@ -226,16 +231,15 @@ func (nw *T) Store(c *contact.T, val *kvstore.Value) error {
 }
 
 func (nw *T) resolveRPC(message []byte, raddr *net.UDPAddr) {
-	var args map[string]interface{}
-	err := msgpack.Unmarshal(message, &args)
+	// We have to unmarshal the rest of the message after we know what type it is
+	// TODO: find a way to unmarshal to the right type immediately
+	var header RPCHeader
+	err := msgpack.Unmarshal(message, &header)
 	if err != nil {
 		log.Printf("Unable to unpack message from %v: %v\n", raddr, err)
 		return
 	}
-	// This depends on what type msgpack decided to encode RPCType with and might break in the future.
-	// TODO: read the RPC type in a safer way
-	rpcType := int(args["RPCType"].(int8))
-	switch rpcType {
+	switch header.RPCType {
 	case PING:
 		nw.pingResponse(raddr)
 	case FIND_NODE:
@@ -245,7 +249,8 @@ func (nw *T) resolveRPC(message []byte, raddr *net.UDPAddr) {
 	case STORE:
 		nw.storeResponse(message)
 	default:
-		log.Printf("Unknown RPC: %v\n", args["RPCType"])
+		log.Printf("Unknown RPC: %v\n", header.RPCType)
+		//log.Printf("Unknown RPC: %v\n", args["RPCType"])
 		// garbage message, don't update routing table
 		return
 	}
