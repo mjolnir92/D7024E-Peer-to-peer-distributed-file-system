@@ -15,15 +15,14 @@ import (
 
 type T struct {
 	timeout time.Duration
-	id *kademliaid.T
+	contactMe *contact.T
 	routingtable *routingtable.T
 	kvstore *kvstore.T
 	conn *net.UDPConn
 }
 
-func New(timeoutms int64, id *kademliaid.T, rt *routingtable.T, kvs *kvstore.T) T {
-	// TODO: do more of the setup here
-	return T{timeout: time.Duration(timeoutms) * time.Millisecond, id: id, routingtable: rt, kvstore: kvs}
+func New(timeoutms int64, contactMe *contact.T, rt *routingtable.T, kvs *kvstore.T) T {
+	return T{timeout: time.Duration(timeoutms) * time.Millisecond, contactMe: contactMe, routingtable: rt, kvstore: kvs}
 }
 
 const (
@@ -36,52 +35,49 @@ const (
 	STORE = 6
 )
 
-// TODO: replace SenderID with SenderContact
-// some messages are sent from a different port
-
 type RPCHeader struct {
 	RPCType int
-	SenderID kademliaid.T
+	Sender contact.T
 }
 
 type RPCPing struct {
 	RPCType int
-	SenderID kademliaid.T
+	Sender contact.T
 }
 
 type RPCPingResponse struct {
 	RPCType int
-	SenderID kademliaid.T
+	Sender contact.T
 }
 
 type RPCFindNode struct {
 	RPCType int
-	SenderID kademliaid.T
+	Sender contact.T
 	FindID kademliaid.T
 }
 
 type RPCFindNodeResponse struct {
 	RPCType int
-	SenderID kademliaid.T
+	Sender contact.T
 	Contacts []contact.T
 }
 
 type RPCFindValue struct {
 	RPCType int
-	SenderID kademliaid.T
+	Sender contact.T
 	FindID kademliaid.T
 }
 
 type RPCFindValueResponse struct {
 	RPCType int
-	SenderID kademliaid.T
+	Sender contact.T
 	ValueData []byte
 	Contacts []contact.T
 }
 
 type RPCStore struct {
 	RPCType int
-	SenderID kademliaid.T
+	Sender contact.T
 	Value kvstore.Value
 }
 
@@ -174,12 +170,19 @@ func (nw *T) rpc(c *contact.T, msg interface{}, response interface{}) (error) {
 	if err != nil {
 		return err
 	}
-	// TODO: update routing table
+	// TODO: avoid unmarshalling twice somehow
+	// this one is only used to update oru routing table
+	var header RPCHeader
+	err = msgpack.Unmarshal(rb, &header)
+	if err != nil {
+		return err
+	}
+	nw.routingtable.AddContact(header.Sender)
 	return nil
 }
 
 func (nw *T) Ping(c *contact.T) error {
-	msg := RPCPing{RPCType: PING, SenderID: *nw.id}
+	msg := RPCPing{RPCType: PING, Sender: *nw.contactMe}
 	var res RPCPingResponse
 	err := nw.rpc(c, msg, &res)
 	if err != nil {
@@ -190,18 +193,19 @@ func (nw *T) Ping(c *contact.T) error {
 }
 
 func (nw *T) FindNode(c *contact.T, findID *kademliaid.T) ([]contact.T, error) {
-	msg := RPCFindNode{RPCType: FIND_NODE, SenderID: *nw.id, FindID: *findID}
+	msg := RPCFindNode{RPCType: FIND_NODE, Sender: *nw.contactMe, FindID: *findID}
 	var res RPCFindNodeResponse
 	err := nw.rpc(c, msg, &res)
 	if err != nil {
 		return nil, err
 	}
-	//contacts := response["Contacts"].([]contact.T)
 	return res.Contacts, nil
 }
 
+// FindValue returns the value as []byte if it was found or some []contacts if it wasn't.
+// The third return value is a bool that is true if the value was found.
 func (nw *T) FindValue(c *contact.T, findID *kademliaid.T) ([]byte, []contact.T, bool, error) {
-	msg := RPCFindValue{RPCType: FIND_VALUE, SenderID: *nw.id, FindID: *findID}
+	msg := RPCFindValue{RPCType: FIND_VALUE, Sender: *nw.contactMe, FindID: *findID}
 	var res RPCFindValueResponse
 	err := nw.rpc(c, msg, &res)
 	if err != nil {
@@ -215,7 +219,7 @@ func (nw *T) FindValue(c *contact.T, findID *kademliaid.T) ([]byte, []contact.T,
 }
 
 func (nw *T) Store(c *contact.T, val *kvstore.Value) error {
-	msg := RPCStore{RPCType: STORE, SenderID: *nw.id, Value: *val}
+	msg := RPCStore{RPCType: STORE, Sender: *nw.contactMe, Value: *val}
 	// not using rpc() since this rpc doesn't need a response
 	b, err := msgpack.Marshal(msg)
 	if err != nil {
@@ -250,15 +254,10 @@ func (nw *T) resolveRPC(message []byte, raddr *net.UDPAddr) {
 		nw.storeResponse(message)
 	default:
 		log.Printf("Unknown RPC: %v\n", header.RPCType)
-		//log.Printf("Unknown RPC: %v\n", args["RPCType"])
 		// garbage message, don't update routing table
 		return
 	}
-	// TODO: update our routing table
-	// this should be a function RPC -> raddr -> contact
-	// senderID := args["SenderID"].(kademliaid.T)
-	// senderContact := contact.New(senderID, raddr)
-	// nw.routingtable.Insert(senderContact)
+	nw.routingtable.AddContact(header.Sender)
 }
 
 func (nw *T) storeResponse(b []byte) {
@@ -268,14 +267,11 @@ func (nw *T) storeResponse(b []byte) {
 		log.Printf("Failed to unmarshal into struct")
 		return
 	}
-	// can't deserialize into private fields of the struct
-	log.Printf("Hey I am trying to store %v", msg.Value)
 	nw.kvstore.Store(msg.Value)
-	// no confirmation is sent
 }
 
 func (nw *T) pingResponse(raddr *net.UDPAddr) {
-	msg := RPCPingResponse{RPCType: PING_RESPONSE, SenderID: *nw.id}
+	msg := RPCPingResponse{RPCType: PING_RESPONSE, Sender: *nw.contactMe}
 	err := nw.respond(msg, raddr)
 	if err != nil {
 		log.Println("Failed to respond to ping: %v\n", err)
@@ -291,15 +287,15 @@ func (nw *T) findValueResponse(b []byte, raddr *net.UDPAddr) {
 	}
 	val, ok := nw.kvstore.Get(msg.FindID)
 	if ok {
-		msg := RPCFindValueResponse{RPCType: FIND_VALUE_RESPONSE, SenderID: *nw.id, ValueData: val.GetData()}
+		msg := RPCFindValueResponse{RPCType: FIND_VALUE_RESPONSE, Sender: *nw.contactMe, ValueData: val.GetData()}
 		err := nw.respond(msg, raddr)
 		if err != nil {
 			log.Println("Failed to respond with value: %v\n", err)
 		}
 	} else {
-		// if we can't find it, just treat it as a FindNode
+		// if we can't find it, treat it like a FindNode RPC
 		contacts := nw.routingtable.FindKClosestContacts(&msg.FindID)
-		response := RPCFindValueResponse{RPCType: FIND_VALUE_RESPONSE, SenderID: *nw.id, Contacts: contacts}
+		response := RPCFindValueResponse{RPCType: FIND_VALUE_RESPONSE, Sender: *nw.contactMe, Contacts: contacts}
 		err = nw.respond(response, raddr)
 		if err != nil {
 			log.Println("Failed to respond with contacts: %v\n", err)
@@ -315,7 +311,7 @@ func (nw *T) findNodeResponse(b []byte, raddr *net.UDPAddr) {
 		return
 	}
 	contacts := nw.routingtable.FindKClosestContacts(&msg.FindID)
-	response := RPCFindNodeResponse{RPCType: FIND_NODE_RESPONSE, SenderID: *nw.id, Contacts: contacts}
+	response := RPCFindNodeResponse{RPCType: FIND_NODE_RESPONSE, Sender: *nw.contactMe, Contacts: contacts}
 	err = nw.respond(response, raddr)
 	if err != nil {
 		log.Println("Failed to respond with contacts: %v\n", err)

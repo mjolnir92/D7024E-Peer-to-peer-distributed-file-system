@@ -1,6 +1,7 @@
 package network
 
 import (
+	"log"
 	"bytes"
 	"testing"
 	"time"
@@ -17,14 +18,14 @@ func TestRPCs(t *testing.T) {
 	id_client := kademliaid.New("1000000000000000000000000000000000000000")
 	ct_client := contact.New(id_client, "localhost:12310")
 	rt_client := routingtable.New(ct_client, 20)
-	nw_client := New(5000, id_client, rt_client, nil)
+	nw_client := New(5000, &ct_client, rt_client, nil)
 	// set up server
 	id_server := kademliaid.New("0000000000000000000000000000000000000000")
 	ct_server := contact.New(id_server, "localhost:12300")
 	rt_server := routingtable.New(ct_server, 20)
 	rt_server.AddContact(ct_client)
 	kvs_server := kvstore.New()
-	nw_server := New(5000, id_server, rt_server, kvs_server)
+	nw_server := New(5000, &ct_server, rt_server, kvs_server)
 	go nw_server.Listen("localhost", 12300)
 	// TODO: clean up the Listen goroutine
 	// Wait a bit so the server is ready
@@ -35,6 +36,10 @@ func TestRPCs(t *testing.T) {
 			t.Error("Ping returned an error:", err)
 		}
 		// TODO: was the routing table updated?
+		got := rt_client.FindClosestContacts(id_server, 1)
+		if len(got) == 0 || *got[0].ID != *id_server {
+			t.Error("Server was not added to routing table after Ping")
+		}
 	})
 	t.Run("FindNode", func(t *testing.T) {
 		contacts, err := nw_client.FindNode(&ct_server, id_client)
@@ -43,8 +48,7 @@ func TestRPCs(t *testing.T) {
 		}
 		if len(contacts) == 0 {
 			t.Error("FindNode returned an empty contact list")
-		}
-		if *contacts[0].ID != *ct_client.ID || contacts[0].Address != ct_client.Address {
+		} else if *contacts[0].ID != *ct_client.ID || contacts[0].Address != ct_client.Address {
 			t.Errorf("FindNode returned an unexpected contact:\nExpected:\n%v\nGot:\n%v\n", ct_client, contacts[0])
 		}
 	})
@@ -72,7 +76,7 @@ func TestRPCs(t *testing.T) {
 			t.Error("Value was not found")
 		}
 		if !bytes.Equal(data, stored_val.GetData()) {
-			t.Error("Didn't get the data that was stored. Expected\n%v\nGot\n%v\n", stored_val.GetData(), data)
+			t.Errorf("Didn't get the data that was stored. Expected\n%v\nGot\n%v\n", stored_val.GetData(), data)
 		}
 	})
 	t.Run("Store", func(t *testing.T) {
@@ -97,9 +101,9 @@ func TestMarshal(t *testing.T) {
 	id_client := kademliaid.New("1000000000000000000000000000000000000000")
 	ct_client := contact.New(id_client, "localhost:12310")
 	rt_client := routingtable.New(ct_client, 20)
-	nw_client := New(5000, id_client, rt_client, nil)
+	nw_client := New(5000, &ct_client, rt_client, nil)
 	id_server := kademliaid.New("0000000000000000000000000000000000000000")
-	expected := RPCFindNode{RPCType: FIND_NODE, SenderID: *nw_client.id, FindID: *id_server}
+	expected := RPCFindNode{RPCType: FIND_NODE, Sender: *nw_client.contactMe, FindID: *id_server}
 	b, err := msgpack.Marshal(&expected)
 	if err != nil {
 		t.Error("marshal failed")
@@ -109,7 +113,9 @@ func TestMarshal(t *testing.T) {
 	if err != nil {
 		t.Error("unmarshal failed")
 	}
-	if got != expected {
-		t.Error("Didn't get what we expected")
+	log.Printf("%v", got.Sender.ID)
+	// For Sender.ID, the pointers should be different, but the values should be the same
+	if *got.Sender.ID != *expected.Sender.ID || got.Sender.Address != expected.Sender.Address {
+		t.Errorf("Didn't get what we expected.\nexpected\n%v\ngot\n%v\n", expected, got)
 	}
 }
