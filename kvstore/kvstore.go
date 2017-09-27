@@ -66,6 +66,8 @@ func (t *T) Pin(id kademliaid.T, time time.Time) {
 }
 
 func (t *T) Get(key kademliaid.T) (Value, bool) {
+	t.mux.Lock()
 	v, ok := t.store.Get(key)
+	t.mux.Unlock()
 	return v, ok
 }
