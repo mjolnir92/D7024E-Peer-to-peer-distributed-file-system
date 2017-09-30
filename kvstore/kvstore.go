@@ -25,24 +25,28 @@ func New() *T {
 	return t
 }
 
-//Function to store a key-value pair
-func (t *T) Store(v Value) {
+//Function to store a key-value pair. Returns true if the value was inserted
+func (t *T) Store(v Value) bool {
 	t.mux.Lock()
 	//Create a kademliaid (key) for the value to be inserted.
 	data := v.GetData()
 	key := kademliaid.NewHash(data)
+	inserted := false
 
 	current, ok := t.store.Get(*key)
 	if ok {
 		//The key did exist
 		if current.Before(v) {
 			t.store.Set(*key, v)
+			inserted = true
 		}
 	} else {
 		//Key did not already exist
 		t.store.Set(*key, v)
+		inserted = true
 	}
 	t.mux.Unlock()
+	return inserted
 }
 
 //Removes a key-value pair from the storer
