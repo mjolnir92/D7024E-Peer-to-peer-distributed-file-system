@@ -5,6 +5,8 @@ import (
 	"github.com/mjolnir92/kdfs/kademliaid"
 )
 
+//eventTypes for events in the kademlia implementation
+//bucket refresh events should just have an int to signify bucket index
 const (
 	PUBLISH = "PUBLISH"
 	REPUBLISH = "REPUBLISH"

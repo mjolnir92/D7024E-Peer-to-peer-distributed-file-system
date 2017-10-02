@@ -2,7 +2,6 @@ package kvstore
 
 import (
 	"sync"
-	"time"
 	"github.com/mjolnir92/kdfs/kademliaid"
 )
 
@@ -61,12 +60,6 @@ func (t *T) Remove(v Value) {
 		t.store.Unset(*key)
 	}
 	t.mux.Unlock()
-}
-
-//Pin update
-//Updates pin if the timestamp is newer
-func (t *T) Pin(id kademliaid.T, time time.Time) {
-	//TODO
 }
 
 func (t *T) Get(key kademliaid.T) (Value, bool) {

@@ -10,6 +10,8 @@ import (
 	"github.com/mjolnir92/kdfs/contact"
 	"github.com/mjolnir92/kdfs/routingtable"
 	"github.com/mjolnir92/kdfs/kvstore"
+	"github.com/mjolnir92/kdfs/kademlia"
+	"github.com/mjolnir92/kdfs/eventmanager"
 	"github.com/vmihailenco/msgpack"
 )
 
@@ -19,10 +21,12 @@ type T struct {
 	routingtable *routingtable.T
 	kvstore *kvstore.T
 	conn *net.UDPConn
+	kademlia *kademlia.T
+	eventmanager *eventmanager.T
 }
 
-func New(timeoutms int64, contactMe *contact.T, rt *routingtable.T, kvs *kvstore.T) T {
-	return T{timeout: time.Duration(timeoutms) * time.Millisecond, contactMe: contactMe, routingtable: rt, kvstore: kvs}
+func New(timeoutms int64, contactMe *contact.T, rt *routingtable.T, kvs *kvstore.T, k *kademlia.T, em *eventmanager.T) T {
+	return T{timeout: time.Duration(timeoutms) * time.Millisecond, contactMe: contactMe, routingtable: rt, kvstore: kvs, kademlia: k}
 }
 
 const (
@@ -267,7 +271,35 @@ func (nw *T) storeResponse(b []byte) {
 		log.Printf("Failed to unmarshal into struct")
 		return
 	}
-	nw.kvstore.Store(msg.Value)
+	
+	repub := func() {
+		contacts := nw.kademlia.LookupContact(id)
+		for i := 0; i < len(contacts); i++ {
+			go nw.Store(contacts[i], &msg.Value)
+		}
+	}
+	expire := func() {
+		nw.eventmanager.DeleteEvent(*id, nw.eventmanager.REPUBLISH)
+		nw.kvstore.Remove(msg.Value)
+		nw.eventmanager.DeleteEvent(*id, nw.eventmanager.EXPIRE) //removes some garbage
+	}
+
+	//msg.Value will only be inserted if the timestamp is newer
+	ok := nw.kvstore.Store(msg.Value)
+	id := kademliaid.NewHash(msg.Value.GetData())
+	if ok {
+		if msg.Value.GetPin() == true {
+			nw.eventmanager.DeleteEvent(*id, nw.eventmanager.EXPIRE)
+			nw.eventmanager.InsertEvent(*id, eventmanager.REPUBLISH, repub, nw.kademlia.REPUBLISH_TIME)
+		} else {
+			nw.eventmanager.InsertEvent(*id, nw.eventmanager.EXPIRE, expire, nw.kademlia.EXPIRE_TIME)
+			nw.eventmanager.InsertEvent(*id, eventmanager.REPUBLISH, repub, nw.kademlia.REPUBLISH_TIME) //Unpinning might mean to stop all republishing?
+		}
+	} else {
+		//If we didn't insert a new value, should we reset the republish time (efficient republishing)
+		//Perhaps compare time of current value and msg.Value, only reset if the message had the same or a newer timestamp
+		nw.eventmanager.ResetEvent(*id, nw.eventmanager.REPUBLISH, nw.kademlia.REPUBLISH_TIME) 
+	}
 }
 
 func (nw *T) pingResponse(raddr *net.UDPAddr) {
