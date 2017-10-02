@@ -27,17 +27,17 @@ func (contact *T) String() string {
 	return fmt.Sprintf(`contact("%s", "%s")`, contact.ID, contact.Address)
 }
 
-// This implements sort.Interface for []T based on the kademlia ID
-type ByID []T
+// This implements sort.Interface for []T based on the distance
+type ByDist []T
 
-func (a ByID) Len() int {
+func (a ByDist) Len() int {
 	return len(a)
 }
 
-func (a ByID) Swap(i, j int) {
+func (a ByDist) Swap(i, j int) {
 	a[i], a[j] = a[j], a[i]
 }
 
-func (a ByID) Less(i, j int) bool {
+func (a ByDist) Less(i, j int) bool {
 	return a[i].Less(&a[j])
 }
