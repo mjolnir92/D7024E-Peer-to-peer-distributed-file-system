@@ -34,6 +34,7 @@ func (kademlia *T) LookupContact(target *contact.T) {
 	newClosest := true
 	for newClosest {
 		// Remove queried from candidates
+		//TODO: This might be wrong
 		for i := 0, i < len(candidates); i++ {
 			cand = candidates[i]
 			if val, ok := queried[cand.ID]; ok {
