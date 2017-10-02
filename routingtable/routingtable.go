@@ -72,7 +72,7 @@ func (routingTable *T) FindClosestContacts(target *kademliaid.T, count int) []co
 		}
 	}
 
-	sort.Sort(contact.ByID(candidates))
+	sort.Sort(contact.ByDist(candidates))
 
 	if count > len(candidates) {
 		count = len(candidates)
