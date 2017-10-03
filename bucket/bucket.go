@@ -53,14 +53,18 @@ func (bucket *T) Len() int {
 	return bucket.list.Len()
 }
 
+/*
 func (bucket *T) MoveToFront(c *contact.T) {
 	//bucket.list.MoveToFront(c)
 }
+*/
 
 func (bucket *T) Remove(c *contact.T) {
 	
 }
 
+/*
 func (bucket *T) GetRandom() contact.T {
 
 }
+*/

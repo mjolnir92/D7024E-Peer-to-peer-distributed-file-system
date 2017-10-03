@@ -6,7 +6,6 @@ import (
 	"github.com/mjolnir92/kdfs/contact"
 	"github.com/mjolnir92/kdfs/bucket"
 	"github.com/mjolnir92/kdfs/kademliaid"
-	"github.com/mjolnir92/kdfs/network"
 )
 
 const bucketSize = 20
@@ -21,25 +20,6 @@ func New(me contact.T, bucketSize int) *T {
 	routingTable := &T{}
 	for i := 0; i < kademliaid.IDLength*8; i++ {
 		routingTable.buckets[i] = bucket.New(bucketSize)
-	}
-	routingTable.me = me
-	return routingTable
-}
-
-func New2(me contact.T, bucketSize int, nw *network.T, k *kademlia.T, em *eventmanager) *T {
-	routingTable := &T{}
-	for i := 0; i < kademliaid.IDLength*8; i++ {
-		routingTable.buckets[i] = bucket.New(bucketSize)
-		f := func() {
-			//Ping contact, if no we get no response remove from bucket, else move to front
-			contact := routingTable.buckets[i].GetRandom()
-			if status := nw.Ping(contact); status == nil {
-				//move to front
-			} else {
-				//remove from bucket
-			}
-		}
-		em.InsertEvent(me.ID ,i, f, k.REFRESH_BUCKET)
 	}
 	routingTable.me = me
 	return routingTable

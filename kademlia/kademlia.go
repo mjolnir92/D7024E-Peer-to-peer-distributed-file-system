@@ -5,16 +5,14 @@ import (
 	"github.com/mjolnir92/kdfs/contact"
 	"github.com/mjolnir92/kdfs/routingtable"
 	"github.com/mjolnir92/kdfs/kademliaid"
+	"github.com/mjolnir92/kdfs/constants"
+	"github.com/mjolnir92/kdfs/network"
 )
 
-const {
+const (
 	ALPHA = 3
 	K = 20
-	PUBLISH_TIME = 24 * time.Hour //put these in a separate go package
-	REPUBLISH_TIME = time.Hour
-	EXPIRE_TIME = 24 * time.Hour
-	BUCKET_REFRESH = time.Hour
-}
+)
 
 type T struct {
 	//TODO: Create work dispatcher running <ALPHA> threads, (not sure if this is the right way to do it anymore...)
@@ -88,7 +86,7 @@ func (t *T) Store(data []byte)  kademliaid.T {
 		}
 	}
 	//Will this event ever be removed? As it looks like right now, no.
-	t.eventmanager.InsertEvent(id, eventmanager.PUBLISH, f, t.PUBLISH_TIME)
+	t.eventmanager.InsertEvent(id, eventmanager.PUBLISH, f, constants.PUBLISH_TIME)
 }
 
 func (kademlia *T) Cat(id Kademliaid.T) string {
