@@ -2,6 +2,8 @@ package kademlia
 
 import (
 	"time"
+	"sort"
+	"sync"
 	"github.com/mjolnir92/kdfs/contact"
 	"github.com/mjolnir92/kdfs/routingtable"
 	"github.com/mjolnir92/kdfs/kademliaid"
@@ -14,56 +16,101 @@ const (
 	K = 20
 )
 
+type Candidates struct {
+	c	[]contact.T
+	mux	sync.Mutex
+}
+
+func (candidates *Candidates) CalcDistances(target *contact.T) {
+	for _, c := range candidates.c {
+		c.CalcDistance(target.ID)
+	}
+}
+
 type T struct {
-	//TODO: Create work dispatcher running <ALPHA> threads, (not sure if this is the right way to do it anymore...)
-	//TODO: Create routing table
 	eventmanager *eventmanager.T
 	kvstore *kvstore.T
 	network *network.T
 }
 
-func (t *T) LookupContact(target *contact.T) {
-	var candidates []contact.T
-	//TODO: make() candidates?
-	var queried map[kademliaid.T]contact.T
-	queried = make(map[kademliaid.T]contact.T)
-	//TODO: Create channel for RPC returns
-	//TODO: Spawn go routine that updates candidates by by appendning from channel and sorts by distance. If error is received: resend, Else: update queried and candidates
+func (t *T) LookupContact(target *contact.T) []contact.T {
+	candidates := Candidates{c: make([]contact.T, 0)}
+	queried := make(map[kademliaid.T]contact.T)
+	ch := make(chan []contact.T)
 
-	// Query <ALPHA> closest known nodes
-	closestNodes := routingtable.FindClosestContacts(target.ID, ALPHA)
-	for _, node := range closestNodes {
-		//TODO: Spawn go routine that calls FindNode for <node>
-		// Change so FindNode returns to a channel?
-		// go t.network.FindNode(args, ch)
+	// Routine that updates candidates
+	go func() {
+		for i := range ch {
+			candidates.mux.Lock()
+			candidates.c = append(candidates.c, i...)
+			candidates.CalcDistances(target)
+			sort.Sort(contact.ByDist(candidates.c))
+			candidates.mux.Unlock()
+		}
 	}
 
-	// Sort candidates by distance (calc distnce every time a candidate is added)
-	//TODO: Move this to go routine at the start of the function
-	sort.Sort(contact.ByDist(candidates))
-	
+	// Query <ALPHA> closest known nodes
+	closestNodes := t.network.routingtable.FindClosestContacts(target.ID, ALPHA)
+	for _, node := range closestNodes {
+		go func() {
+			res, err := t.network.FindNode(node, target.ID)
+			if err != nil {
+				//TODO: Handle error
+			} else {
+				queried[node.ID] = node
+				ch <- res
+			}
+		}
+	}
+
 	// Repeat until no closer nodes are found
-	var closestSeen contact.T
-	//TODO: Init <closestSeen> to closest to target in <candidates>
-	newClosest := true
-	for newClosest {
-		// Remove queried from candidates
-		//TODO: This might be wrong, just sort and check so it's not queried when sending RPCs
-		for i := 0, i < len(candidates); i++ {
-			cand = candidates[i]
-			if val, ok := queried[cand.ID]; ok {
-				candidates = append(candidates[:i], candidates[i+1]...)
-				i--
+	for {
+		closestSeen := candidates.c[0]
+		aCount := 0
+		for i := 0; i < K; i++ {
+			if val, ok := queried[candidates.c[i]]; !ok {
+				go func() {
+					res, err := t.network.FindNode(node, target.ID)
+					if err != nil {
+						//TODO: Handle error
+					} else {
+						queried[node.ID] = node
+						ch <- res
+					}
+				}
+				aCount++
+			}
+			if aCount >= ALPHA {
+				break
 			}
 		}
 
-		//TODO: For <K>: Spawn go routine that calls FindNode for contacts[i], break loop if <ALPHA> has been spawned
-		//TODO: If closestSeen == contacts[0]: newClosest = false
+		if closestSeen.ID == candidates.c[0].ID {
+			break
+		}
 	}
 
-	//TODO: For <K>: If contacts[i] not queried: Spawn go routines that calls FindNode for contacts[i]
-	//TODO: For candidates[:K] not in <queried>: continue
-	//TODO: return candidates[:K]
+	pendingReplies := true
+	// Query all K closest candidates that have not been queried until all have responded
+	for pendingReplies {
+		pendingReplies = false
+		for i := 0; i < K; i++ {
+			if val, ok := queried[candidates.c[i]]; !ok {
+				go func() {
+					res, err := t.network.FindNode(node, target.ID)
+					if err != nil {
+						//TODO: Handle error
+					} else {
+						queried[node.ID] = node
+						ch <- res
+					}
+				}
+				pendingReplies = true
+			}
+		}
+	}
+
+	return candidates.c[:K]
 }
 
 func (kademlia *T) LookupData(hash string) {
