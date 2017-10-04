@@ -13,11 +13,6 @@ import (
 	"github.com/mjolnir92/kdfs/kvstore"
 )
 
-const (
-	ALPHA = 3
-	K = 20
-)
-
 type Candidates struct {
 	c	[]contact.T
 	mux	sync.Mutex
@@ -33,19 +28,17 @@ type T struct {
 	eventmanager *eventmanager.T
 	kvstore *kvstore.T
 	routingtable *routingtable.T
-	timeout time.Duration
 	contactMe *contact.T
 	conn *net.UDPConn
 }
 
-func New() *T{ //TODO fix New() to be similar to networks New()
+func New(contactMe *contact.T) *T{
 	t := &T{}
-	id := kademliaid.NewRandom()
-	ct := contact.New(id, "localhost:12310") //TODO New() takes a contact?
-	t.contactMe = &ct
-	t.routingtable = routingtable.New(*t.contactMe, 20)
+	t.contactMe = contactMe
+	t.routingtable = routingtable.New(*t.contactMe, constants.K)
 	t.eventmanager = eventmanager.New()
 	t.kvstore = kvstore.New()
+
 	//TODO setup bucket refresh events
 	return t
 }
@@ -158,11 +151,11 @@ func (t *T) KademliaStore(data []byte)  kademliaid.T {
 		}
 	}
 	//Will this event ever be removed? As it looks like right now, no.
-	t.eventmanager.InsertEvent(*id, eventmanager.PUBLISH, f, constants.PUBLISH_TIME)
+	t.eventmanager.InsertEvent(*id, constants.PUBLISH, f, constants.PUBLISH_TIME)
 	return *id
 }
 
-func (kademlia *T) Cat(id kademliaid.T) string {
+func (t *T) Cat(id kademliaid.T) string {
 	value := t.LookupData(id)
 	data := value.GetData()
 	return string(data[:])

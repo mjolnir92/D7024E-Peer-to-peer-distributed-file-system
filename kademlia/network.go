@@ -132,7 +132,7 @@ func (nw *T) respond(msg interface{}, raddr *net.UDPAddr) error {
 func (nw *T) receive(conn *net.UDPConn) ([]byte, error) {
 	// TODO: make this buffer size configurable somewhere
 	p := make([]byte, 2048)
-	conn.SetReadDeadline(time.Now().Add(nw.timeout))
+	conn.SetReadDeadline(time.Now().Add(constants.TIMEOUT))
 	_, err := bufio.NewReader(conn).Read(p)
 	if err != nil {
 		return nil, err
@@ -265,25 +265,25 @@ func (nw *T) storeResponse(b []byte) {
 		}
 	}
 	expire := func() {
-		nw.eventmanager.DeleteEvent(*id, eventmanager.REPUBLISH)
+		nw.eventmanager.DeleteEvent(*id, constants.REPUBLISH)
 		nw.kvstore.Remove(msg.Value)
-		nw.eventmanager.DeleteEvent(*id, eventmanager.EXPIRE) //removes some garbage
+		nw.eventmanager.DeleteEvent(*id, constants.EXPIRE) //removes some garbage
 	}
 
 	//msg.Value will only be inserted if the timestamp is newer
 	ok := nw.kvstore.Store(msg.Value)
 	if ok {
 		if msg.Value.GetPin() == true {
-			nw.eventmanager.DeleteEvent(*id, eventmanager.EXPIRE)
-			nw.eventmanager.InsertEvent(*id, eventmanager.REPUBLISH, repub, constants.REPUBLISH_TIME)
+			nw.eventmanager.DeleteEvent(*id, constants.EXPIRE)
+			nw.eventmanager.InsertEvent(*id, constants.REPUBLISH, repub, constants.REPUBLISH_TIME)
 		} else {
-			nw.eventmanager.InsertEvent(*id, eventmanager.EXPIRE, expire, constants.EXPIRE_TIME)
-			nw.eventmanager.InsertEvent(*id, eventmanager.REPUBLISH, repub, constants.REPUBLISH_TIME)
+			nw.eventmanager.InsertEvent(*id, constants.EXPIRE, expire, constants.EXPIRE_TIME)
+			nw.eventmanager.InsertEvent(*id, constants.REPUBLISH, repub, constants.REPUBLISH_TIME)
 		}
 	} else {
 		//If we didn't insert a new value, should we reset the republish time (efficient republishing?)
 		//Perhaps compare time of current value and msg.Value, only reset if the message had the same or a newer timestamp
-		nw.eventmanager.ResetEvent(*id, eventmanager.REPUBLISH, constants.REPUBLISH_TIME) 
+		nw.eventmanager.ResetEvent(*id, constants.REPUBLISH, constants.REPUBLISH_TIME) 
 	}
 }
 

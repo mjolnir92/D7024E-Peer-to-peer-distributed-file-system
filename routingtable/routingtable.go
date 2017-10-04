@@ -6,9 +6,8 @@ import (
 	"github.com/mjolnir92/kdfs/contact"
 	"github.com/mjolnir92/kdfs/bucket"
 	"github.com/mjolnir92/kdfs/kademliaid"
+	"github.com/mjolnir92/kdfs/constants"
 )
-
-const bucketSize = 20
 
 type T struct {
 	me      contact.T
@@ -63,7 +62,7 @@ func (routingTable *T) FindClosestContacts(target *kademliaid.T, count int) []co
 }
 
 func (routingTable *T) FindKClosestContacts(target *kademliaid.T) []contact.T {
-	return routingTable.FindClosestContacts(target, bucketSize)
+	return routingTable.FindClosestContacts(target, constants.K)
 }
 
 func (routingTable *T) getBucketIndex(id *kademliaid.T) int {
