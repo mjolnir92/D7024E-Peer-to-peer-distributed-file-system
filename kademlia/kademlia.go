@@ -20,7 +20,7 @@ type Candidates struct {
 
 func (candidates *Candidates) CalcDistances(target *contact.T) {
 	for _, c := range candidates.c {
-		c.CalcDistance(target.ID)
+		c.CalcDistance(target)
 	}
 }
 
@@ -43,9 +43,26 @@ func New(contactMe *contact.T) *T{
 	return t
 }
 
+func (t *T) issueFindNode(node *contact.T, target *kademliaid.T, candidates *Candidates, queried map[kademliaid.T]contact.T, replied map[kademliaid.T]contact.T) {
+	res, err := t.FindNode(node, target)
+	queried[node.ID] = node
+	candidates.mux.Lock()
+	if err != nil {
+		//TODO: Evict node from candidates
+	} else {
+		replied[node.ID] = node
+		candidates.c = append(candidates.c, res...)
+		candidates.CalcDistances(target)
+		sort.Sort(contact.ByDist(candidates.c))
+	}
+	candidates.mux.Unlock()
+}
+
 func (t *T) LookupContact(target *kademliaid.T) []contact.T {
 	candidates := Candidates{c: make([]contact.T, 0)}
 	queried := make(map[kademliaid.T]contact.T)
+	replied := make(map[kademliaid.T]contact.T)
+	/*
 	ch := make(chan []contact.T)
 
 	// Routine that updates candidates
@@ -58,69 +75,99 @@ func (t *T) LookupContact(target *kademliaid.T) []contact.T {
 			candidates.mux.Unlock()
 		}
 	}()
+	*/
 
 	// Query <ALPHA> closest known nodes
-	closestNodes := t.routingtable.FindClosestContacts(target, ALPHA)
+	closestNodes := t.routingtable.FindClosestContacts(target, constants.ALPHA)
 	for _, node := range closestNodes {
+		/*
 		go func() {
 			res, err := t.FindNode(node, target)
+			queried[node.ID] = node
 			if err != nil {
 				//TODO: Handle error
 			} else {
-				queried[node.ID] = node
+				replied[node.ID] = node
 				ch <- res
 			}
 		}()
+		*/
+		go t.issueFindNode(&node, target, &candidates, queried, replied)
 	}
 
 	// Repeat until no closer nodes are found
 	for {
+		candidates.mux.Lock()
 		closestSeen := candidates.c[0]
 		aCount := 0
-		for i := 0; i < K; i++ {
+		for i := 0; i < constants.K; i++ {
 			if val, ok := queried[candidates.c[i]]; !ok {
+				/*
 				go func() {
-					res, err := t.FindNode(node, target)
+					res, err := t.FindNode(candidates.c[i], target)
+					queried[candidates.c[i].ID] = candidates.c[i]
 					if err != nil {
 						//TODO: Handle error
 					} else {
-						queried[node.ID] = node
+						replied[candidates.c[i].ID] = candidates.c[i]
 						ch <- res
 					}
 				}()
+				*/
+				go t.issueFindNode(&candidates.c[i], target, &candidates, queried, replied)
 				aCount++
 			}
-			if aCount >= ALPHA {
+			if aCount >= constants.ALPHA {
 				break
 			}
 		}
+		candidates.mux.Unlock()
 
+		//TODO: Wait for responses here?
+
+		candidates.mux.Lock()
 		if closestSeen.ID == candidates.c[0].ID {
 			break
 		}
+		candidates.mux.Unlock()
 	}
 
 	pendingReplies := true
 	// Query all K closest candidates that have not been queried until all have responded
 	for pendingReplies {
 		pendingReplies = false
-		for i := 0; i < K; i++ {
+		candidates.mux.Lock()
+		for i := 0; i < constants.K; i++ {
 			if val, ok := queried[candidates.c[i]]; !ok {
+				/*
 				go func() {
-					res, err := t.FindNode(node, target)
+					res, err := t.FindNode(candidates.c[i], target)
+					queried[candidates.c[i].ID] = candidates.c[i]
 					if err != nil {
 						//TODO: Handle error
 					} else {
-						queried[node.ID] = node
+						replied[candidates.c[i].ID] = candidates.c[i]
 						ch <- res
 					}
 				}()
+				*/
+				go t.issueFindNode(&candidates.c[i], target, &candidates, queried, replied)
+			}
+		}
+		candidates.mux.Unlock()
+
+		candidates.mux.Lock()
+		for i := 0; i < constants.K; i++ {
+			if val, ok := replied[candidates.c[i]]; !ok {
 				pendingReplies = true
 			}
 		}
+		candidates.mux.Unlock()
 	}
 
-	return candidates.c[:K]
+	candidates.mux.Lock()
+	defer candidates.mux.Unlock()
+	return candidates.c[:constants.K]
 }
 
 func (kademlia *T) LookupData(hash string) {
