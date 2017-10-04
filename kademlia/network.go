@@ -9,7 +9,6 @@ import (
 	"github.com/mjolnir92/kdfs/kademliaid"
 	"github.com/mjolnir92/kdfs/contact"
 	"github.com/mjolnir92/kdfs/kvstore"
-	"github.com/mjolnir92/kdfs/eventmanager"
 	"github.com/mjolnir92/kdfs/constants"
 	"github.com/vmihailenco/msgpack"
 )

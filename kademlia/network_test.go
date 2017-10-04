@@ -7,7 +7,6 @@ import (
 	"time"
 	"github.com/mjolnir92/kdfs/kademliaid"
 	"github.com/mjolnir92/kdfs/contact"
-	"github.com/mjolnir92/kdfs/routingtable"
 	"github.com/mjolnir92/kdfs/kvstore"
 	"github.com/vmihailenco/msgpack"
 )
@@ -17,15 +16,12 @@ func TestRPCs(t *testing.T) {
 	// set up client
 	id_client := kademliaid.New("1000000000000000000000000000000000000000")
 	ct_client := contact.New(id_client, "localhost:12310")
-	rt_client := routingtable.New(ct_client, 20)
-	nw_client := New(5000, &ct_client, rt_client, nil)
+	nw_client := New(&ct_client)
 	// set up server
 	id_server := kademliaid.New("0000000000000000000000000000000000000000")
 	ct_server := contact.New(id_server, "localhost:12300")
-	rt_server := routingtable.New(ct_server, 20)
-	rt_server.AddContact(ct_client)
-	kvs_server := kvstore.New()
-	nw_server := New(5000, &ct_server, rt_server, kvs_server)
+	nw_server := New(&ct_server)
+	nw_server.routingtable.AddContact(ct_client)
 	go nw_server.Listen("localhost", 12300)
 	// TODO: clean up the Listen goroutine
 	// Wait a bit so the server is ready
@@ -36,7 +32,7 @@ func TestRPCs(t *testing.T) {
 			t.Error("Ping returned an error:", err)
 		}
 		// TODO: was the routing table updated?
-		got := rt_client.FindClosestContacts(id_server, 1)
+		got := nw_client.routingtable.FindClosestContacts(id_server, 1)
 		if len(got) == 0 || *got[0].ID != *id_server {
 			t.Error("Server was not added to routing table after Ping")
 		}
@@ -100,8 +96,7 @@ func TestRPCs(t *testing.T) {
 func TestMarshal(t *testing.T) {
 	id_client := kademliaid.New("1000000000000000000000000000000000000000")
 	ct_client := contact.New(id_client, "localhost:12310")
-	rt_client := routingtable.New(ct_client, 20)
-	nw_client := New(5000, &ct_client, rt_client, nil)
+	nw_client := New(&ct_client)
 	id_server := kademliaid.New("0000000000000000000000000000000000000000")
 	expected := RPCFindNode{RPCType: FIND_NODE, Sender: *nw_client.contactMe, FindID: *id_server}
 	b, err := msgpack.Marshal(&expected)
