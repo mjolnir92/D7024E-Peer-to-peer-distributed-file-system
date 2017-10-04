@@ -43,7 +43,7 @@ func New(contactMe *contact.T) *T{
 	return t
 }
 
-func (t *T) LookupContact(target *contact.T) []contact.T {
+func (t *T) LookupContact(target *kademliaid.T) []contact.T {
 	candidates := Candidates{c: make([]contact.T, 0)}
 	queried := make(map[kademliaid.T]contact.T)
 	ch := make(chan []contact.T)
@@ -57,20 +57,20 @@ func (t *T) LookupContact(target *contact.T) []contact.T {
 			sort.Sort(contact.ByDist(candidates.c))
 			candidates.mux.Unlock()
 		}
-	}
+	}()
 
 	// Query <ALPHA> closest known nodes
-	closestNodes := t.network.routingtable.FindClosestContacts(target.ID, ALPHA)
+	closestNodes := t.routingtable.FindClosestContacts(target, ALPHA)
 	for _, node := range closestNodes {
 		go func() {
-			res, err := t.network.FindNode(node, target.ID)
+			res, err := t.FindNode(node, target)
 			if err != nil {
 				//TODO: Handle error
 			} else {
 				queried[node.ID] = node
 				ch <- res
 			}
-		}
+		}()
 	}
 
 	// Repeat until no closer nodes are found
@@ -80,14 +80,14 @@ func (t *T) LookupContact(target *contact.T) []contact.T {
 		for i := 0; i < K; i++ {
 			if val, ok := queried[candidates.c[i]]; !ok {
 				go func() {
-					res, err := t.network.FindNode(node, target.ID)
+					res, err := t.FindNode(node, target)
 					if err != nil {
 						//TODO: Handle error
 					} else {
 						queried[node.ID] = node
 						ch <- res
 					}
-				}
+				}()
 				aCount++
 			}
 			if aCount >= ALPHA {
@@ -107,14 +107,14 @@ func (t *T) LookupContact(target *contact.T) []contact.T {
 		for i := 0; i < K; i++ {
 			if val, ok := queried[candidates.c[i]]; !ok {
 				go func() {
-					res, err := t.network.FindNode(node, target.ID)
+					res, err := t.FindNode(node, target)
 					if err != nil {
 						//TODO: Handle error
 					} else {
 						queried[node.ID] = node
 						ch <- res
 					}
-				}
+				}()
 				pendingReplies = true
 			}
 		}
