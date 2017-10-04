@@ -1,4 +1,4 @@
-package network
+package kademlia
 
 import (
 	"net"
@@ -8,27 +8,11 @@ import (
 	"bufio"
 	"github.com/mjolnir92/kdfs/kademliaid"
 	"github.com/mjolnir92/kdfs/contact"
-	"github.com/mjolnir92/kdfs/routingtable"
 	"github.com/mjolnir92/kdfs/kvstore"
 	"github.com/mjolnir92/kdfs/eventmanager"
 	"github.com/mjolnir92/kdfs/constants"
-	"github.com/mjolnir92/kdfs/dfs"
 	"github.com/vmihailenco/msgpack"
 )
-
-type T struct {
-	timeout time.Duration
-	contactMe *contact.T
-	routingtable *routingtable.T
-	kvstore *kvstore.T
-	conn *net.UDPConn
-	dfs dfs.T
-	eventmanager *eventmanager.T
-}
-
-func New(timeoutms int64, contactMe *contact.T, rt *routingtable.T, kvs *kvstore.T, em *eventmanager.T, dfs dfs.T) T {
-	return T{timeout: time.Duration(timeoutms) * time.Millisecond, contactMe: contactMe, routingtable: rt, kvstore: kvs, eventmanager: em, dfs: dfs}
-}
 
 const (
 	PING = 0
@@ -275,7 +259,7 @@ func (nw *T) storeResponse(b []byte) {
 	
 	id := kademliaid.NewHash(msg.Value.GetData())
 	repub := func() {
-		contacts := nw.dfs.LookupContact(*id)
+		contacts := nw.LookupContact(*id)
 		for i := 0; i < len(contacts); i++ {
 			go nw.Store(&contacts[i], &msg.Value)
 		}
@@ -294,10 +278,10 @@ func (nw *T) storeResponse(b []byte) {
 			nw.eventmanager.InsertEvent(*id, eventmanager.REPUBLISH, repub, constants.REPUBLISH_TIME)
 		} else {
 			nw.eventmanager.InsertEvent(*id, eventmanager.EXPIRE, expire, constants.EXPIRE_TIME)
-			nw.eventmanager.InsertEvent(*id, eventmanager.REPUBLISH, repub, constants.REPUBLISH_TIME) //Unpinning might mean to stop all republishing?
+			nw.eventmanager.InsertEvent(*id, eventmanager.REPUBLISH, repub, constants.REPUBLISH_TIME)
 		}
 	} else {
-		//If we didn't insert a new value, should we reset the republish time (efficient republishing)
+		//If we didn't insert a new value, should we reset the republish time (efficient republishing?)
 		//Perhaps compare time of current value and msg.Value, only reset if the message had the same or a newer timestamp
 		nw.eventmanager.ResetEvent(*id, eventmanager.REPUBLISH, constants.REPUBLISH_TIME) 
 	}
