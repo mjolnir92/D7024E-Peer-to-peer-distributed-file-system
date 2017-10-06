@@ -39,7 +39,17 @@ func New(contactMe *contact.T) *T{
 	t.eventmanager = eventmanager.New()
 	t.kvstore = kvstore.New()
 
-	//TODO setup bucket refresh events
+	for i := 0; i < kademliaid.IDLength*8; i++{
+		f := func() {
+			randomID := kademliaid.NewRandomCommonPrefix(*contactMe.ID, uint8(i))
+			contacts := t.LookupContact(randomID)
+			for _, c := range(contacts) {
+				t.routingtable.AddContact(c)
+			}
+		}
+		t.eventmanager.InsertEvent(*contactMe.ID, i, f, constants.BUCKET_REFRESH)
+		//TODO, delay refresh event when the bucket is accessed
+	}
 	return t
 }
 
