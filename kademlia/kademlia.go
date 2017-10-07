@@ -53,12 +53,15 @@ func New(contactMe *contact.T) *T{
 	return t
 }
 
-func (t *T) issueFindNode(node *contact.T, target *kademliaid.T, candidates *Candidates, queried map[kademliaid.T]contact.T, replied map[kademliaid.T]contact.T) {
+func (t *T) issueFindNode(node *contact.T, target *kademliaid.T, candidates *Candidates, i int,  queried map[kademliaid.T]contact.T, replied map[kademliaid.T]contact.T, wg *sync.WaitGroup) {
+	defer wg.Done()
 	res, err := t.FindNode(node, target)
 	queried[node.ID] = node
 	candidates.mux.Lock()
 	if err != nil {
-		//TODO: Evict node from candidates
+		if i != -1 {
+			candidates.c = append(candidates.c[:i], candidates.c[i+1:]...)
+		}
 	} else {
 		replied[node.ID] = node
 		candidates.c = append(candidates.c, res...)
@@ -72,6 +75,7 @@ func (t *T) LookupContact(target *kademliaid.T) []contact.T {
 	candidates := Candidates{c: make([]contact.T, 0)}
 	queried := make(map[kademliaid.T]contact.T)
 	replied := make(map[kademliaid.T]contact.T)
+	var wg sync.WaitGroup
 	/*
 	ch := make(chan []contact.T)
 
@@ -102,14 +106,16 @@ func (t *T) LookupContact(target *kademliaid.T) []contact.T {
 			}
 		}()
 		*/
-		go t.issueFindNode(&node, target, &candidates, queried, replied)
+		// Call with i = -1 do denote that there is nothing to evict from candidates yet
+		go t.issueFindNode(&node, target, &candidates, -1, queried, replied, &wg)
 	}
 
 	// Repeat until no closer nodes are found
 	for {
+		wg.Add(constants.ALPHA)
+		aCount := 0
 		candidates.mux.Lock()
 		closestSeen := candidates.c[0]
-		aCount := 0
 		for i := 0; i < constants.K; i++ {
 			if val, ok := queried[candidates.c[i]]; !ok {
 				/*
@@ -124,7 +130,7 @@ func (t *T) LookupContact(target *kademliaid.T) []contact.T {
 					}
 				}()
 				*/
-				go t.issueFindNode(&candidates.c[i], target, &candidates, queried, replied)
+				go t.issueFindNode(&candidates.c[i], target, &candidates, i, queried, replied, &wg)
 				aCount++
 			}
 			if aCount >= constants.ALPHA {
@@ -133,7 +139,8 @@ func (t *T) LookupContact(target *kademliaid.T) []contact.T {
 		}
 		candidates.mux.Unlock()
 
-		//TODO: Wait for responses here?
+		//  Wait for responses
+		wg.Wait()
 
 		candidates.mux.Lock()
 		if closestSeen.ID == candidates.c[0].ID {
@@ -159,9 +166,9 @@ func (t *T) LookupContact(target *kademliaid.T) []contact.T {
 						replied[candidates.c[i].ID] = candidates.c[i]
 						ch <- res
 					}
-				}()
+				}( i,)
 				*/
-				go t.issueFindNode(&candidates.c[i], target, &candidates, queried, replied)
+				go t.issueFindNode(&candidates.c[i], target, &candidates, i, queried, replied, &wg)
 			}
 		}
 		candidates.mux.Unlock()
