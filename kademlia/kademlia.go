@@ -18,7 +18,7 @@ type Candidates struct {
 	mux	sync.Mutex
 }
 
-func (candidates *Candidates) CalcDistances(target *contact.T) {
+func (candidates *Candidates) CalcDistances(target *kademliaid.T) {
 	for _, c := range candidates.c {
 		c.CalcDistance(target)
 	}
@@ -56,14 +56,14 @@ func New(contactMe *contact.T) *T{
 func (t *T) issueFindNode(node *contact.T, target *kademliaid.T, candidates *Candidates, i int,  queried map[kademliaid.T]contact.T, replied map[kademliaid.T]contact.T, wg *sync.WaitGroup) {
 	defer wg.Done()
 	res, err := t.FindNode(node, target)
-	queried[node.ID] = node
+	queried[*node.ID] = *node
 	candidates.mux.Lock()
 	if err != nil {
 		if i != -1 {
 			candidates.c = append(candidates.c[:i], candidates.c[i+1:]...)
 		}
 	} else {
-		replied[node.ID] = node
+		replied[*node.ID] = *node
 		candidates.c = append(candidates.c, res...)
 		candidates.CalcDistances(target)
 		sort.Sort(contact.ByDist(candidates.c))
@@ -117,7 +117,7 @@ func (t *T) LookupContact(target *kademliaid.T) []contact.T {
 		candidates.mux.Lock()
 		closestSeen := candidates.c[0]
 		for i := 0; i < constants.K; i++ {
-			if val, ok := queried[candidates.c[i]]; !ok {
+			if val, ok := queried[*candidates.c[i].ID]; !ok {
 				/*
 				go func() {
 					res, err := t.FindNode(candidates.c[i], target)
@@ -155,7 +155,7 @@ func (t *T) LookupContact(target *kademliaid.T) []contact.T {
 		pendingReplies = false
 		candidates.mux.Lock()
 		for i := 0; i < constants.K; i++ {
-			if val, ok := queried[candidates.c[i]]; !ok {
+			if val, ok := queried[*candidates.c[i].ID]; !ok {
 				/*
 				go func() {
 					res, err := t.FindNode(candidates.c[i], target)
@@ -175,7 +175,7 @@ func (t *T) LookupContact(target *kademliaid.T) []contact.T {
 
 		candidates.mux.Lock()
 		for i := 0; i < constants.K; i++ {
-			if val, ok := replied[candidates.c[i]]; !ok {
+			if val, ok := replied[*candidates.c[i].ID]; !ok {
 				pendingReplies = true
 			}
 		}
