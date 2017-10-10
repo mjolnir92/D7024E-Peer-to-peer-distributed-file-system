@@ -140,33 +140,43 @@ func (nw *T) receive(conn *net.UDPConn) ([]byte, error) {
 }
 
 func (nw *T) rpc(c *contact.T, msg interface{}, response interface{}) (error) {
+	header, err := nw.rpcNoRefresh(c, msg, response)
+	if err != nil {
+		return err
+	}
+	if header != nil {
+		nw.routingtable.AddContact(header.Sender)
+	}
+	return nil
+}
+
+func (nw *T) rpcNoRefresh(c *contact.T, msg interface{}, response interface{}) (*RPCHeader, error) {
 	b, err := msgpack.Marshal(msg)
 	if err != nil {
 		log.Printf("Error marshalling FindNode RPC: %v\n", err)
-		return err
+		return nil, err
 	}
 	conn, err := nw.send(c, b)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	defer conn.Close()
 	rb, err := nw.receive(conn)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	err = msgpack.Unmarshal(rb, response)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	// TODO: avoid unmarshalling twice somehow
-	// this one is only used to update oru routing table
+	// this one is only used to update our routing table
 	var header RPCHeader
 	err = msgpack.Unmarshal(rb, &header)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	nw.routingtable.AddContact(header.Sender)
-	return nil
+	return &header, nil
 }
 
 func (nw *T) Ping(c *contact.T) error {
@@ -177,6 +187,16 @@ func (nw *T) Ping(c *contact.T) error {
 		return err
 	}
 	// routing table is updated as a side effect of receiving the response
+	return nil
+}
+
+func (nw *T) PingNoRefresh(c *contact.T) error {
+	msg := RPCPing{RPCType: PING, Sender: *nw.contactMe}
+	var res RPCPingResponse
+	_, err := nw.rpcNoRefresh(c, msg, &res)
+	if err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -258,7 +278,7 @@ func (nw *T) storeResponse(b []byte) {
 	
 	id := kademliaid.NewHash(msg.Value.GetData())
 	repub := func() {
-		contacts := nw.LookupContact(*id)
+		contacts := nw.LookupContact(id)
 		for i := 0; i < len(contacts); i++ {
 			go nw.Store(&contacts[i], &msg.Value)
 		}

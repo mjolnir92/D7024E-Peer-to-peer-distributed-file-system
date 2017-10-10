@@ -7,28 +7,36 @@ import (
 	"github.com/mjolnir92/kdfs/bucket"
 	"github.com/mjolnir92/kdfs/kademliaid"
 	"github.com/mjolnir92/kdfs/constants"
+	"github.com/mjolnir92/kdfs/eventmanager"
 )
 
 type T struct {
 	me      contact.T
+	eventmanager *eventmanager.T
 	buckets [kademliaid.IDLength * 8]*bucket.T
+	pingCallback func(c *contact.T) error
 	mux sync.Mutex
 }
 
-func New(me contact.T, bucketSize int) *T {
+func New(me contact.T, em *eventmanager.T, bucketSize int, f func(c *contact.T) error) *T {
 	routingTable := &T{}
 	for i := 0; i < kademliaid.IDLength*8; i++ {
 		routingTable.buckets[i] = bucket.New(bucketSize)
 	}
 	routingTable.me = me
+	routingTable.eventmanager = em
+	routingTable.pingCallback = f
 	return routingTable
 }
 
+//Add a contact to the correct bucket.
+//The timer of the bucket refresh event is reset here to prevent non-stale buckets from needlessly updating
 func (routingTable *T) AddContact(contact contact.T) {
 	routingTable.mux.Lock()
 	bucketIndex := routingTable.getBucketIndex(contact.ID)
 	bucket := routingTable.buckets[bucketIndex]
-	bucket.AddContact(contact)
+	bucket.AddContact(contact, routingTable.pingCallback)
+	routingTable.eventmanager.ResetEvent(*routingTable.me.ID, bucketIndex, constants.BUCKET_REFRESH)
 	routingTable.mux.Unlock()
 }
 

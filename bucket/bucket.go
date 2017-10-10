@@ -18,7 +18,8 @@ func New(bucketSize int) *T {
 	return bucket
 }
 
-func (bucket *T) AddContact(c contact.T) {
+//The ping callback function should be the ping method from kademlia/network
+func (bucket *T) AddContact(c contact.T, ping func(c2 *contact.T) error) {
 	var element *list.Element
 	for e := bucket.list.Front(); e != nil; e = e.Next() {
 		nodeID := e.Value.(contact.T).ID
@@ -28,9 +29,23 @@ func (bucket *T) AddContact(c contact.T) {
 		}
 	}
 
+	//The front of the list is the tail of the list, the back of the list is the head
 	if element == nil {
 		if bucket.list.Len() < bucket.bucketSize {
 			bucket.list.PushFront(c)
+		} else {
+			//ping least-recently seen node, evict if unresponsive and insert the new contact at the tail
+			//if it responds move it to the front of the list and discard the new contact
+			leastRecent := bucket.list.Back()
+			if leastRecent != nil {
+				leastRecentContact := leastRecent.Value.(contact.T)
+				if err := ping(&leastRecentContact); err != nil {
+					bucket.list.Remove(leastRecent)
+					bucket.list.PushFront(c)
+				} else {
+					bucket.list.MoveToFront(leastRecent)
+				}
+			}
 		}
 	} else {
 		bucket.list.MoveToFront(element)
