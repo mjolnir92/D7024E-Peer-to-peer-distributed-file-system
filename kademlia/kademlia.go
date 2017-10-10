@@ -35,8 +35,8 @@ type T struct {
 func New(contactMe *contact.T) *T{
 	t := &T{}
 	t.contactMe = contactMe
-	t.routingtable = routingtable.New(*t.contactMe, constants.K)
 	t.eventmanager = eventmanager.New()
+	t.routingtable = routingtable.New(*t.contactMe, t.eventmanager, constants.K, t.PingNoRefresh)
 	t.kvstore = kvstore.New()
 
 	for i := 0; i < kademliaid.IDLength*8; i++{
@@ -117,7 +117,7 @@ func (t *T) LookupContact(target *kademliaid.T) []contact.T {
 		candidates.mux.Lock()
 		closestSeen := candidates.c[0]
 		for i := 0; i < constants.K; i++ {
-			if val, ok := queried[*candidates.c[i].ID]; !ok {
+			if _, ok := queried[*candidates.c[i].ID]; !ok {
 				/*
 				go func() {
 					res, err := t.FindNode(candidates.c[i], target)
@@ -155,7 +155,7 @@ func (t *T) LookupContact(target *kademliaid.T) []contact.T {
 		pendingReplies = false
 		candidates.mux.Lock()
 		for i := 0; i < constants.K; i++ {
-			if val, ok := queried[*candidates.c[i].ID]; !ok {
+			if _, ok := queried[*candidates.c[i].ID]; !ok {
 				/*
 				go func() {
 					res, err := t.FindNode(candidates.c[i], target)
@@ -175,7 +175,7 @@ func (t *T) LookupContact(target *kademliaid.T) []contact.T {
 
 		candidates.mux.Lock()
 		for i := 0; i < constants.K; i++ {
-			if val, ok := replied[*candidates.c[i].ID]; !ok {
+			if _, ok := replied[*candidates.c[i].ID]; !ok {
 				pendingReplies = true
 			}
 		}
@@ -187,8 +187,11 @@ func (t *T) LookupContact(target *kademliaid.T) []contact.T {
 	return candidates.c[:constants.K]
 }
 
-func (kademlia *T) LookupData(hash string) {
+func (kademlia *T) LookupData(target *kademliaid.T) []byte {
 	// TODO
+	//remove whats below this comment, it was just to remove compile errors temporarily
+	var data []byte
+	return data
 }
 
 func (t *T) KademliaStore(data []byte)  kademliaid.T {
@@ -198,20 +201,21 @@ func (t *T) KademliaStore(data []byte)  kademliaid.T {
 	data_val := kvstore.NewValue(false, data)
 
 	for i := 0; i < len(contacts); i++ {
-		go t.Store(contacts[i], &data_val)
+		go t.Store(&contacts[i], &data_val)
 	}
 	//Add republish event that updates the time on the key-value pair
 	f := func() {
 		//If this node doesn't have the file, do LookupData to find it
 		value, ok := t.kvstore.Get(*id)
 		if !ok {
-			value = t.LookupData(id)
+			//TODO fix
+			//data := t.LookupData(id)
 		}
 		value.Timestamp = time.Now()
 
 		contacts := t.LookupContact(id)
 		for i := 0; i < len(contacts); i++ {
-			go t.Store(contacts[i], &value)
+			go t.Store(&contacts[i], &value)
 		}
 	}
 	//Will this event ever be removed? As it looks like right now, no.
@@ -220,8 +224,7 @@ func (t *T) KademliaStore(data []byte)  kademliaid.T {
 }
 
 func (t *T) Cat(id kademliaid.T) string {
-	value := t.LookupData(id)
-	data := value.GetData()
+	data := t.LookupData(&id)
 	return string(data[:])
 }
 
@@ -230,14 +233,15 @@ func (t *T) Pin(id kademliaid.T) {
 	//If this node doesn't have the file, do LookupData to find it
 	value, ok := t.kvstore.Get(id)
 	if !ok {
-		value = t.LookupData(id)
+		//TODO fix
+		//data := t.LookupData(&id)
 	}
 	value.Timestamp = time.Now()
 	value.Pin = true
 
-	contacts := t.LookupContact(id)
+	contacts := t.LookupContact(&id)
 	for i := 0; i < len(contacts); i++ {
-		go t.Store(contacts[i], &value)
+		go t.Store(&contacts[i], &value)
 	}
 }
 
@@ -245,13 +249,14 @@ func (t *T) Pin(id kademliaid.T) {
 func (t *T) Unpin(id kademliaid.T) {
 	value, ok := t.kvstore.Get(id)
 	if !ok {
-		value = t.LookupData(id)
+		//TODO fix
+		//data := t.LookupData(&id)
 	}
 	value.Timestamp = time.Now()
 	value.Pin = false
 
-	contacts := t.LookupContact(id)
+	contacts := t.LookupContact(&id)
 	for i := 0; i < len(contacts); i++ {
-		go t.Store(contacts[i], &value)
+		go t.Store(&contacts[i], &value)
 	}
 }
