@@ -52,7 +52,7 @@ func TestRPCs(t *testing.T) {
 		stored_val := kvstore.NewValue(true, []byte{255,128,0})
 		id_val := kademliaid.NewHash(stored_val.GetData())
 		// value is not yet stored on the server
-		data, contacts, gotData, err := nw_client.FindValue(&ct_server, id_val)
+		value, contacts, gotData, err := nw_client.FindValue(&ct_server, id_val)
 		if err != nil {
 			t.Error("FindValue returned an error:", err)
 		}
@@ -64,15 +64,15 @@ func TestRPCs(t *testing.T) {
 		}
 		// value is stored on the server
 		nw_server.kvstore.Store(stored_val)
-		data, contacts, gotData, err = nw_client.FindValue(&ct_server, id_val)
+		value, contacts, gotData, err = nw_client.FindValue(&ct_server, id_val)
 		if err != nil {
 			t.Error("FindValue returned an error:", err)
 		}
 		if gotData != true {
 			t.Error("Value was not found")
 		}
-		if !bytes.Equal(data, stored_val.GetData()) {
-			t.Errorf("Didn't get the data that was stored. Expected\n%v\nGot\n%v\n", stored_val.GetData(), data)
+		if !bytes.Equal(value.GetData(), stored_val.GetData()) {
+			t.Errorf("Didn't get the data that was stored. Expected\n%v\nGot\n%v\n", stored_val.GetData(), value.GetData())
 		}
 	})
 	t.Run("Store", func(t *testing.T) {

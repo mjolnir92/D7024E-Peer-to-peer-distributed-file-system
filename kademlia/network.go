@@ -59,7 +59,7 @@ type RPCFindValue struct {
 type RPCFindValueResponse struct {
 	RPCType int
 	Sender contact.T
-	ValueData []byte
+	Value kvstore.Value
 	Contacts []contact.T
 }
 
@@ -212,18 +212,20 @@ func (nw *T) FindNode(c *contact.T, findID *kademliaid.T) ([]contact.T, error) {
 
 // FindValue returns the value as []byte if it was found or some []contacts if it wasn't.
 // The third return value is a bool that is true if the value was found.
-func (nw *T) FindValue(c *contact.T, findID *kademliaid.T) ([]byte, []contact.T, bool, error) {
+func (nw *T) FindValue(c *contact.T, findID *kademliaid.T) (kvstore.Value, []contact.T, bool, error) {
 	msg := RPCFindValue{RPCType: FIND_VALUE, Sender: *nw.contactMe, FindID: *findID}
 	var res RPCFindValueResponse
 	err := nw.rpc(c, msg, &res)
 	if err != nil {
-		return nil, nil, false, err
+		var v kvstore.Value
+		return v, nil, false, err
 	}
-	if len(res.ValueData) == 0 {
+	if len(res.Value.GetData()) == 0 {
 		// node did not have the key
-		return nil, res.Contacts, false, nil
+		var v kvstore.Value
+		return v, res.Contacts, false, nil
 	}
-	return res.ValueData, nil, true, nil
+	return res.Value, nil, true, nil
 }
 
 func (nw *T) Store(c *contact.T, val *kvstore.Value) error {
@@ -323,7 +325,7 @@ func (nw *T) findValueResponse(b []byte, raddr *net.UDPAddr) {
 	}
 	val, ok := nw.kvstore.Get(msg.FindID)
 	if ok {
-		msg := RPCFindValueResponse{RPCType: FIND_VALUE_RESPONSE, Sender: *nw.contactMe, ValueData: val.GetData()}
+		msg := RPCFindValueResponse{RPCType: FIND_VALUE_RESPONSE, Sender: *nw.contactMe, Value: val}
 		err := nw.respond(msg, raddr)
 		if err != nil {
 			log.Println("Failed to respond with value: %v\n", err)

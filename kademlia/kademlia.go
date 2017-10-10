@@ -48,7 +48,6 @@ func New(contactMe *contact.T) *T{
 			}
 		}
 		t.eventmanager.InsertEvent(*contactMe.ID, i, f, constants.BUCKET_REFRESH)
-		//TODO, delay refresh event when the bucket is accessed
 	}
 	return t
 }
@@ -187,10 +186,10 @@ func (t *T) LookupContact(target *kademliaid.T) []contact.T {
 	return candidates.c[:constants.K]
 }
 
-func (kademlia *T) LookupData(target *kademliaid.T) []byte {
+func (t *T) LookupData(target *kademliaid.T) kvstore.Value {
 	// TODO
 	//remove whats below this comment, it was just to remove compile errors temporarily
-	var data []byte
+	var data kvstore.Value
 	return data
 }
 
@@ -208,8 +207,7 @@ func (t *T) KademliaStore(data []byte)  kademliaid.T {
 		//If this node doesn't have the file, do LookupData to find it
 		value, ok := t.kvstore.Get(*id)
 		if !ok {
-			//TODO fix
-			//data := t.LookupData(id)
+			value = t.LookupData(id)
 		}
 		value.Timestamp = time.Now()
 
@@ -224,8 +222,8 @@ func (t *T) KademliaStore(data []byte)  kademliaid.T {
 }
 
 func (t *T) Cat(id kademliaid.T) string {
-	data := t.LookupData(&id)
-	return string(data[:])
+	value := t.LookupData(&id)
+	return string(value.GetData()[:])
 }
 
 //Updates the timestamp and sets the Pin field to true
@@ -233,8 +231,7 @@ func (t *T) Pin(id kademliaid.T) {
 	//If this node doesn't have the file, do LookupData to find it
 	value, ok := t.kvstore.Get(id)
 	if !ok {
-		//TODO fix
-		//data := t.LookupData(&id)
+		value = t.LookupData(&id)
 	}
 	value.Timestamp = time.Now()
 	value.Pin = true
@@ -249,8 +246,7 @@ func (t *T) Pin(id kademliaid.T) {
 func (t *T) Unpin(id kademliaid.T) {
 	value, ok := t.kvstore.Get(id)
 	if !ok {
-		//TODO fix
-		//data := t.LookupData(&id)
+		value = t.LookupData(&id)
 	}
 	value.Timestamp = time.Now()
 	value.Pin = false
