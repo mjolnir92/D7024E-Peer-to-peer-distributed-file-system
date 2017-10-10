@@ -41,15 +41,37 @@ func New(contactMe *contact.T) *T{
 
 	for i := 0; i < kademliaid.IDLength*8; i++{
 		f := func() {
-			randomID := kademliaid.NewRandomCommonPrefix(*contactMe.ID, uint8(i))
-			contacts := t.LookupContact(randomID)
-			for _, c := range(contacts) {
-				t.routingtable.AddContact(c)
-			}
+			t.refreshBucket(i)
 		}
 		t.eventmanager.InsertEvent(*contactMe.ID, i, f, constants.BUCKET_REFRESH)
 	}
 	return t
+}
+
+//This method refreshes the bucket corresponding to the index
+func (t *T) refreshBucket(index int) {
+	randomID := kademliaid.NewRandomCommonPrefix(*t.contactMe.ID, uint8(index))
+	contacts := t.LookupContact(randomID)
+	for _, c := range(contacts) {
+		t.routingtable.AddContact(c)
+	}
+}
+
+func (t *T) Join(c *contact.T) {
+	t.routingtable.AddContact(*c)
+	//Does LookupContact send rpcs to all returned contacts? If so i dont need to add them to the routingtable heres
+	contacts := t.LookupContact(t.contactMe.ID)
+	for _, c := range(contacts) {
+		t.routingtable.AddContact(c)
+	}
+	//Refresh all buckets further away than the closest neighbor
+	closestNeighbors := t.routingtable.FindClosestContacts(t.contactMe.ID, 1)
+	closestNeighbor := closestNeighbors[0]
+	index := t.routingtable.GetBucketIndex(closestNeighbor.ID)
+	for i := index; i < kademliaid.IDLength; i++ {
+		t.refreshBucket(i)
+		t.eventmanager.ResetEvent(*t.contactMe.ID, i, constants.BUCKET_REFRESH)
+	}
 }
 
 func (t *T) issueFindNode(node *contact.T, target *kademliaid.T, candidates *Candidates, i int,  queried map[kademliaid.T]contact.T, replied map[kademliaid.T]contact.T, wg *sync.WaitGroup) {

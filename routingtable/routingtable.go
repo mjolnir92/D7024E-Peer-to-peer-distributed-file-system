@@ -33,7 +33,7 @@ func New(me contact.T, em *eventmanager.T, bucketSize int, f func(c *contact.T) 
 //The timer of the bucket refresh event is reset here to prevent non-stale buckets from needlessly updating
 func (routingTable *T) AddContact(contact contact.T) {
 	routingTable.mux.Lock()
-	bucketIndex := routingTable.getBucketIndex(contact.ID)
+	bucketIndex := routingTable.GetBucketIndex(contact.ID)
 	bucket := routingTable.buckets[bucketIndex]
 	bucket.AddContact(contact, routingTable.pingCallback)
 	routingTable.eventmanager.ResetEvent(*routingTable.me.ID, bucketIndex, constants.BUCKET_REFRESH)
@@ -43,7 +43,7 @@ func (routingTable *T) AddContact(contact contact.T) {
 func (routingTable *T) FindClosestContacts(target *kademliaid.T, count int) []contact.T {
 	routingTable.mux.Lock()
 	var candidates []contact.T
-	bucketIndex := routingTable.getBucketIndex(target)
+	bucketIndex := routingTable.GetBucketIndex(target)
 	bucket := routingTable.buckets[bucketIndex]
 
 	candidates = append(candidates, bucket.GetContactAndCalcDistance(target)...)
@@ -73,7 +73,7 @@ func (routingTable *T) FindKClosestContacts(target *kademliaid.T) []contact.T {
 	return routingTable.FindClosestContacts(target, constants.K)
 }
 
-func (routingTable *T) getBucketIndex(id *kademliaid.T) int {
+func (routingTable *T) GetBucketIndex(id *kademliaid.T) int {
 	distance := id.CalcDistance(routingTable.me.ID)
 	for i := 0; i < kademliaid.IDLength; i++ {
 		for j := 0; j < 8; j++ {
@@ -88,7 +88,7 @@ func (routingTable *T) getBucketIndex(id *kademliaid.T) int {
 
 //Returns a pointer to the bucket closest to the target KademliaID
 func (routingTable *T) GetBucket(id *kademliaid.T) *bucket.T {
-	bucketIndex := routingTable.getBucketIndex(id)
+	bucketIndex := routingTable.GetBucketIndex(id)
 	
 	routingTable.mux.Lock()
 	defer routingTable.mux.Unlock()
