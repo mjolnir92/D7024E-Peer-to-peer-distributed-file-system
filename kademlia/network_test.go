@@ -63,6 +63,8 @@ func TestRPCs(t *testing.T) {
 			if *contacts[0].ID != *ct_client.ID || contacts[0].Address != ct_client.Address {
 				t.Errorf("Value returned an unexpected contact:\nExpected:\n%v\nGot:\n%v\n", ct_client, contacts[0])
 			}
+		} else {
+			t.Errorf("Findvalue did not return a contact:\nExpected:\n%v", ct_client)
 		}
 		// value is stored on the server
 		nw_server.kvstore.Store(stored_val)
