@@ -8,7 +8,7 @@ const (
 	ALPHA = 3
 	K = 20
 
-	TIMEOUT = time.Duration(5000)
+	TIMEOUT = 500 * time.Millisecond
 
 	PUBLISH_TIME = 24 * time.Hour
 	REPUBLISH_TIME = time.Hour
