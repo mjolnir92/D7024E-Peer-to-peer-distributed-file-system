@@ -325,7 +325,8 @@ func (nw *T) findValueResponse(b []byte, raddr *net.UDPAddr) {
 	}
 	val, ok := nw.kvstore.Get(msg.FindID)
 	if ok {
-		msg := RPCFindValueResponse{RPCType: FIND_VALUE_RESPONSE, Sender: *nw.contactMe, Value: val}
+		contacts := []contact.T{}
+		msg := RPCFindValueResponse{RPCType: FIND_VALUE_RESPONSE, Sender: *nw.contactMe, Value: val, Contacts: contacts}
 		err := nw.respond(msg, raddr)
 		if err != nil {
 			log.Println("Failed to respond with value: %v\n", err)

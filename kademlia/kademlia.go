@@ -57,9 +57,11 @@ func (t *T) refreshBucket(index int) {
 	}
 }
 
+//A kademlia node t can join the network as long as they know of one other node c
+//This method connects t to the rest of the network
 func (t *T) Join(c *contact.T) {
 	t.routingtable.AddContact(*c)
-	//Does LookupContact send rpcs to all returned contacts? If so i dont need to add them to the routingtable heres
+	//Does LookupContact send rpcs to all returned contacts? If so i dont need to add them to the routingtable here
 	contacts := t.LookupContact(t.contactMe.ID)
 	for _, c := range(contacts) {
 		t.routingtable.AddContact(c)
@@ -243,9 +245,9 @@ func (t *T) KademliaStore(data []byte)  kademliaid.T {
 	return *id
 }
 
-func (t *T) Cat(id kademliaid.T) string {
+func (t *T) Cat(id kademliaid.T) []byte {
 	value := t.LookupData(&id)
-	return string(value.GetData()[:])
+	return value.GetData()
 }
 
 //Updates the timestamp and sets the Pin field to true
