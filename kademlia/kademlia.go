@@ -3,6 +3,7 @@ package kademlia
 import (
 	"net"
 	"time"
+	"fmt"
 	"sort"
 	"sync"
 	"errors"
@@ -157,14 +158,14 @@ func (t *T) LookupContact(target *kademliaid.T) []contact.T {
 		// Call with i = -1 do denote that there is nothing to evict from candidates yet
 		go t.issueFindNode(&node, target, &candidates, -1, queried, replied, &wg)
 	}
-
+	
 	// Repeat until no closer nodes are found
 	for {
 		wg.Add(constants.ALPHA)
 		aCount := 0
 		candidates.mux.Lock()
 		closestSeen := candidates.c[0]
-		for i, node := range candidates.c {
+		for i, _ := range candidates.c {
 			if _, ok := queried[*candidates.c[i].ID]; !ok {
 				/*
 				go func() {
@@ -205,7 +206,7 @@ func (t *T) LookupContact(target *kademliaid.T) []contact.T {
 	for pendingReplies {
 		pendingReplies = false
 		candidates.mux.Lock()
-		for i, node := range candidates.c {
+		for i, _ := range candidates.c {
 			if _, ok := queried[*candidates.c[i].ID]; !ok {
 				/*
 				go func() {
@@ -228,7 +229,7 @@ func (t *T) LookupContact(target *kademliaid.T) []contact.T {
 		candidates.mux.Unlock()
 
 		candidates.mux.Lock()
-		for i, node := range candidates.c {
+		for i, _ := range candidates.c {
 			if _, ok := replied[*candidates.c[i].ID]; !ok {
 				pendingReplies = true
 			}
@@ -274,7 +275,7 @@ func (t *T) LookupData(target *kademliaid.T) (kvstore.Value, error) {
 			aCount := 0
 			candidates.mux.Lock()
 			closestSeen := candidates.c[0]
-			for i, node := range candidates.c {
+			for i, _ := range candidates.c {
 				if _, ok := queried[*candidates.c[i].ID]; !ok {
 					go t.issueFindValue(&candidates.c[i], target, &candidates, i, queried, replied, &wg, ch)
 					aCount++
@@ -303,7 +304,7 @@ func (t *T) LookupData(target *kademliaid.T) (kvstore.Value, error) {
 		for pendingReplies {
 			pendingReplies = false
 			candidates.mux.Lock()
-			for i, node := range candidates.c {
+			for i, _ := range candidates.c {
 				if _, ok := queried[*candidates.c[i].ID]; !ok {
 					go t.issueFindValue(&candidates.c[i], target, &candidates, i, queried, replied, &wg, ch)
 				}
@@ -314,7 +315,7 @@ func (t *T) LookupData(target *kademliaid.T) (kvstore.Value, error) {
 			candidates.mux.Unlock()
 
 			candidates.mux.Lock()
-			for i, node := range candidates.c {
+			for i, _ := range candidates.c {
 				if _, ok := replied[*candidates.c[i].ID]; !ok {
 					pendingReplies = true
 				}
@@ -344,7 +345,7 @@ func (t *T) LookupData(target *kademliaid.T) (kvstore.Value, error) {
 
 	// Value was not found
 	//TODO: Return error?
-	return nil, errors.New("Value not found")
+	return data, errors.New("Value not found")
 }
 
 func (t *T) KademliaStore(data []byte)  kademliaid.T {
@@ -361,7 +362,11 @@ func (t *T) KademliaStore(data []byte)  kademliaid.T {
 		//If this node doesn't have the file, do LookupData to find it
 		value, ok := t.kvstore.Get(*id)
 		if !ok {
-			value = t.LookupData(id)
+			var err error
+			value, err = t.LookupData(id)
+			if err != nil {
+				fmt.Println(err)
+			}
 		}
 		value.Timestamp = time.Now()
 
@@ -376,7 +381,10 @@ func (t *T) KademliaStore(data []byte)  kademliaid.T {
 }
 
 func (t *T) Cat(id kademliaid.T) []byte {
-	value := t.LookupData(&id)
+	value, err := t.LookupData(&id)
+	if err != nil {
+		fmt.Println(err)
+	}
 	return value.GetData()
 }
 
@@ -385,7 +393,11 @@ func (t *T) Pin(id kademliaid.T) {
 	//If this node doesn't have the file, do LookupData to find it
 	value, ok := t.kvstore.Get(id)
 	if !ok {
-		value = t.LookupData(&id)
+		var err error
+		value, err = t.LookupData(&id)
+		if err != nil {
+			fmt.Println(err)
+		}
 	}
 	value.Timestamp = time.Now()
 	value.Pin = true
@@ -400,7 +412,11 @@ func (t *T) Pin(id kademliaid.T) {
 func (t *T) Unpin(id kademliaid.T) {
 	value, ok := t.kvstore.Get(id)
 	if !ok {
-		value = t.LookupData(&id)
+		var err error
+		value, err = t.LookupData(&id)
+		if err != nil {
+			fmt.Println(err)
+		}
 	}
 	value.Timestamp = time.Now()
 	value.Pin = false
