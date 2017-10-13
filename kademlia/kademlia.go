@@ -155,13 +155,15 @@ func (t *T) LookupContact(target *kademliaid.T) []contact.T {
 			}
 		}()
 		*/
+		wg.Add(1)
 		// Call with i = -1 do denote that there is nothing to evict from candidates yet
 		go t.issueFindNode(&node, target, &candidates, -1, queried, replied, &wg)
 	}
+
+	wg.Wait()
 	
 	// Repeat until no closer nodes are found
 	for {
-		wg.Add(constants.ALPHA)
 		aCount := 0
 		candidates.mux.Lock()
 		closestSeen := candidates.c[0]
@@ -179,6 +181,7 @@ func (t *T) LookupContact(target *kademliaid.T) []contact.T {
 					}
 				}()
 				*/
+				wg.Add(1)
 				go t.issueFindNode(&candidates.c[i], target, &candidates, i, queried, replied, &wg)
 				aCount++
 			}
@@ -220,6 +223,7 @@ func (t *T) LookupContact(target *kademliaid.T) []contact.T {
 					}
 				}( i,)
 				*/
+				wg.Add(1)
 				go t.issueFindNode(&candidates.c[i], target, &candidates, i, queried, replied, &wg)
 			}
 			if i >= constants.K {
@@ -265,18 +269,21 @@ func (t *T) LookupData(target *kademliaid.T) (kvstore.Value, error) {
 		// Query <ALPHA> closest known nodes
 		closestNodes := t.routingtable.FindClosestContacts(target, constants.ALPHA)
 		for _, node := range closestNodes {
+			wg.Add(1)
 			// Call with i = -1 do denote that there is nothing to evict from candidates yet
 			go t.issueFindValue(&node, target, &candidates, -1, queried, replied, &wg, ch)
 		}
 
+		wg.Wait()
+
 		// Repeat until no closer nodes are found
 		for {
-			wg.Add(constants.ALPHA)
 			aCount := 0
 			candidates.mux.Lock()
 			closestSeen := candidates.c[0]
 			for i, _ := range candidates.c {
 				if _, ok := queried[*candidates.c[i].ID]; !ok {
+					wg.Add(1)
 					go t.issueFindValue(&candidates.c[i], target, &candidates, i, queried, replied, &wg, ch)
 					aCount++
 				}
@@ -306,6 +313,7 @@ func (t *T) LookupData(target *kademliaid.T) (kvstore.Value, error) {
 			candidates.mux.Lock()
 			for i, _ := range candidates.c {
 				if _, ok := queried[*candidates.c[i].ID]; !ok {
+					wg.Add(1)
 					go t.issueFindValue(&candidates.c[i], target, &candidates, i, queried, replied, &wg, ch)
 				}
 				if i >= constants.K {
