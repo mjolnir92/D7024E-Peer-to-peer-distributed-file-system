@@ -1,14 +1,48 @@
-package restsrv
+package main
 
 import (
 	"github.com/gin-gonic/gin"
+	"github.com/spf13/cobra"
 	"github.com/mjolnir92/kdfs/restmsg"
+	"github.com/mjolnir92/kdfs/kademlia"
+	"github.com/mjolnir92/kdfs/kademliaid"
+	"github.com/mjolnir92/kdfs/contact"
 	"fmt"
 	"net/http"
+  "os"
 )
 
+//var port_rest uint16
+var dhtAddress string
+
+func init() {
+	//RootCmd.Flags().Uint16VarP(&port, "port", "p", 8080, "the port that the REST API will use")
+	RootCmd.Flags().StringVarP(&dhtAddress, "dht-address", "a", "localhost:9999", "the internet socket that the DHT will use")
+}
+
 func main() {
-	router := gin.Default()
+  if err := RootCmd.Execute(); err != nil {
+    os.Exit(1)
+  }
+}
+
+var RootCmd = &cobra.Command{
+	Use: "kademlia",
+	Short: "starts a kademlia node for kdfs",
+	Long: `Starts a kademlia node with a REST API for kdfs.`,
+	Run: startServer,
+}
+
+var kd *kademlia.T
+
+func startServer(cmd *cobra.Command, args []string) {
+	address = args[1]
+	kid := kademliaid.NewHash([]byte(address))
+	contactMe := contact.New(kid, address)
+	kd = kademlia.New(contactMe, address)
+	router := gin.New()
+	router.Use(gin.Logger())
+	router.Use(gin.Recovery())
 	// prefix everything with /v1
 	v1 := router.Group("/v1")
 	{
@@ -17,6 +51,7 @@ func main() {
 		v1.POST("/pin/:id", pinEndpoint)
 		v1.DELETE("/pin/:id", unpinEndpoint)
 	}
+	router.Run()
 }
 
 // POST /store
