@@ -5,6 +5,7 @@ import (
 	"time"
 	"sort"
 	"sync"
+	"errors"
 	"github.com/mjolnir92/kdfs/contact"
 	"github.com/mjolnir92/kdfs/routingtable"
 	"github.com/mjolnir92/kdfs/kademliaid"
@@ -163,7 +164,7 @@ func (t *T) LookupContact(target *kademliaid.T) []contact.T {
 		aCount := 0
 		candidates.mux.Lock()
 		closestSeen := candidates.c[0]
-		for i := 0; i < constants.K; i++ {
+		for i, node := range candidates.c {
 			if _, ok := queried[*candidates.c[i].ID]; !ok {
 				/*
 				go func() {
@@ -181,6 +182,9 @@ func (t *T) LookupContact(target *kademliaid.T) []contact.T {
 				aCount++
 			}
 			if aCount >= constants.ALPHA {
+				break
+			}
+			if i >= constants.K {
 				break
 			}
 		}
@@ -201,7 +205,7 @@ func (t *T) LookupContact(target *kademliaid.T) []contact.T {
 	for pendingReplies {
 		pendingReplies = false
 		candidates.mux.Lock()
-		for i := 0; i < constants.K; i++ {
+		for i, node := range candidates.c {
 			if _, ok := queried[*candidates.c[i].ID]; !ok {
 				/*
 				go func() {
@@ -217,13 +221,19 @@ func (t *T) LookupContact(target *kademliaid.T) []contact.T {
 				*/
 				go t.issueFindNode(&candidates.c[i], target, &candidates, i, queried, replied, &wg)
 			}
+			if i >= constants.K {
+				break
+			}
 		}
 		candidates.mux.Unlock()
 
 		candidates.mux.Lock()
-		for i := 0; i < constants.K; i++ {
+		for i, node := range candidates.c {
 			if _, ok := replied[*candidates.c[i].ID]; !ok {
 				pendingReplies = true
+			}
+			if i >= constants.K {
+				break
 			}
 		}
 		candidates.mux.Unlock()
@@ -234,7 +244,7 @@ func (t *T) LookupContact(target *kademliaid.T) []contact.T {
 	return candidates.c[:constants.K]
 }
 
-func (t *T) LookupData(target *kademliaid.T) kvstore.Value {
+func (t *T) LookupData(target *kademliaid.T) (kvstore.Value, error) {
 	var data kvstore.Value
 	ch := make(chan kvstore.Value)
 	candidates := Candidates{c: make([]contact.T, 0)}
@@ -264,12 +274,15 @@ func (t *T) LookupData(target *kademliaid.T) kvstore.Value {
 			aCount := 0
 			candidates.mux.Lock()
 			closestSeen := candidates.c[0]
-			for i := 0; i < constants.K; i++ {
+			for i, node := range candidates.c {
 				if _, ok := queried[*candidates.c[i].ID]; !ok {
 					go t.issueFindValue(&candidates.c[i], target, &candidates, i, queried, replied, &wg, ch)
 					aCount++
 				}
 				if aCount >= constants.ALPHA {
+					break
+				}
+				if i >= constants.K {
 					break
 				}
 			}
@@ -290,17 +303,23 @@ func (t *T) LookupData(target *kademliaid.T) kvstore.Value {
 		for pendingReplies {
 			pendingReplies = false
 			candidates.mux.Lock()
-			for i := 0; i < constants.K; i++ {
+			for i, node := range candidates.c {
 				if _, ok := queried[*candidates.c[i].ID]; !ok {
 					go t.issueFindValue(&candidates.c[i], target, &candidates, i, queried, replied, &wg, ch)
+				}
+				if i >= constants.K {
+					break
 				}
 			}
 			candidates.mux.Unlock()
 
 			candidates.mux.Lock()
-			for i := 0; i < constants.K; i++ {
+			for i, node := range candidates.c {
 				if _, ok := replied[*candidates.c[i].ID]; !ok {
 					pendingReplies = true
+				}
+				if i >= constants.K {
+					break
 				}
 			}
 			candidates.mux.Unlock()
@@ -320,12 +339,12 @@ func (t *T) LookupData(target *kademliaid.T) kvstore.Value {
 		// Do nothing, select ends
 	case data := <-ch:
 		// Value was found
-		return data
+		return data, nil
 	}
 
 	// Value was not found
 	//TODO: Return error?
-	return data
+	return nil, errors.New("Value not found")
 }
 
 func (t *T) KademliaStore(data []byte)  kademliaid.T {
