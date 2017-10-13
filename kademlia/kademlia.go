@@ -91,6 +91,7 @@ func (t *T) issueFindNode(node *contact.T, target *kademliaid.T, candidates *Can
 	} else {
 		candidates.c = append(candidates.c, res...)
 		candidates.CalcDistances(target)
+		// TODO failed here. Distances are null or something
 		sort.Sort(contact.ByDist(candidates.c))
 		replied[*node.ID] = *node
 	}
@@ -159,13 +160,15 @@ func (t *T) LookupContact(target *kademliaid.T) []contact.T {
 		// Call with i = -1 do denote that there is nothing to evict from candidates yet
 		go t.issueFindNode(&node, target, &candidates, -1, queried, replied, &wg)
 	}
-
 	wg.Wait()
-	
 	// Repeat until no closer nodes are found
 	for {
 		aCount := 0
 		candidates.mux.Lock()
+		if len(candidates.c) == 0 {
+			candidates.mux.Unlock()
+			break
+		}
 		closestSeen := candidates.c[0]
 		for i, _ := range candidates.c {
 			if _, ok := queried[*candidates.c[i].ID]; !ok {
@@ -231,7 +234,6 @@ func (t *T) LookupContact(target *kademliaid.T) []contact.T {
 			}
 		}
 		candidates.mux.Unlock()
-
 		candidates.mux.Lock()
 		for i, _ := range candidates.c {
 			if _, ok := replied[*candidates.c[i].ID]; !ok {
@@ -246,6 +248,9 @@ func (t *T) LookupContact(target *kademliaid.T) []contact.T {
 
 	candidates.mux.Lock()
 	defer candidates.mux.Unlock()
+	if len(candidates.c) < constants.K {
+		return candidates.c
+	}
 	return candidates.c[:constants.K]
 }
 
