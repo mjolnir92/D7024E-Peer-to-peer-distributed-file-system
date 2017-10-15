@@ -3,8 +3,10 @@ package kademlia
 import (
 	"net"
 	"time"
+	"fmt"
 	"sort"
 	"sync"
+	"errors"
 	"github.com/mjolnir92/kdfs/contact"
 	"github.com/mjolnir92/kdfs/routingtable"
 	"github.com/mjolnir92/kdfs/kademliaid"
@@ -76,6 +78,7 @@ func (t *T) Join(c *contact.T) {
 	}
 }
 
+// Issue FindNode rpc to target and update a list of candidates accordingly, maps of queried and replied nodes are also updated
 func (t *T) issueFindNode(node *contact.T, target *kademliaid.T, candidates *Candidates, i int,  queried map[kademliaid.T]contact.T, replied map[kademliaid.T]contact.T, wg *sync.WaitGroup) {
 	defer wg.Done()
 	res, err := t.FindNode(node, target)
@@ -86,10 +89,34 @@ func (t *T) issueFindNode(node *contact.T, target *kademliaid.T, candidates *Can
 			candidates.c = append(candidates.c[:i], candidates.c[i+1:]...)
 		}
 	} else {
-		replied[*node.ID] = *node
 		candidates.c = append(candidates.c, res...)
 		candidates.CalcDistances(target)
+		// TODO failed here. Distances are null or something
 		sort.Sort(contact.ByDist(candidates.c))
+		replied[*node.ID] = *node
+	}
+	candidates.mux.Unlock()
+}
+
+// Issue FindValue rpc to target and update a list of candidates accordingly, maps of queried and replied nodes are also updated. If a value is found it is passed to a provided channel
+func (t *T) issueFindValue(node *contact.T, target *kademliaid.T, candidates *Candidates, i int,  queried map[kademliaid.T]contact.T, replied map[kademliaid.T]contact.T, wg *sync.WaitGroup, ch chan kvstore.Value) {
+	defer wg.Done()
+	val, res, found, err := t.FindValue(node, target)
+	queried[*node.ID] = *node
+	candidates.mux.Lock()
+	if err != nil {
+		if i != -1 {
+			candidates.c = append(candidates.c[:i], candidates.c[i+1:]...)
+		}
+	} else {
+		if found {
+			ch <- val
+		} else {
+			candidates.c = append(candidates.c, res...)
+			candidates.CalcDistances(target)
+			sort.Sort(contact.ByDist(candidates.c))
+		}
+		replied[*node.ID] = *node
 	}
 	candidates.mux.Unlock()
 }
@@ -129,17 +156,21 @@ func (t *T) LookupContact(target *kademliaid.T) []contact.T {
 			}
 		}()
 		*/
+		wg.Add(1)
 		// Call with i = -1 do denote that there is nothing to evict from candidates yet
 		go t.issueFindNode(&node, target, &candidates, -1, queried, replied, &wg)
 	}
-
+	wg.Wait()
 	// Repeat until no closer nodes are found
 	for {
-		wg.Add(constants.ALPHA)
 		aCount := 0
 		candidates.mux.Lock()
+		if len(candidates.c) == 0 {
+			candidates.mux.Unlock()
+			break
+		}
 		closestSeen := candidates.c[0]
-		for i := 0; i < constants.K; i++ {
+		for i, _ := range candidates.c {
 			if _, ok := queried[*candidates.c[i].ID]; !ok {
 				/*
 				go func() {
@@ -153,10 +184,14 @@ func (t *T) LookupContact(target *kademliaid.T) []contact.T {
 					}
 				}()
 				*/
+				wg.Add(1)
 				go t.issueFindNode(&candidates.c[i], target, &candidates, i, queried, replied, &wg)
 				aCount++
 			}
 			if aCount >= constants.ALPHA {
+				break
+			}
+			if i >= constants.K {
 				break
 			}
 		}
@@ -177,7 +212,7 @@ func (t *T) LookupContact(target *kademliaid.T) []contact.T {
 	for pendingReplies {
 		pendingReplies = false
 		candidates.mux.Lock()
-		for i := 0; i < constants.K; i++ {
+		for i, _ := range candidates.c {
 			if _, ok := queried[*candidates.c[i].ID]; !ok {
 				/*
 				go func() {
@@ -191,15 +226,21 @@ func (t *T) LookupContact(target *kademliaid.T) []contact.T {
 					}
 				}( i,)
 				*/
+				wg.Add(1)
 				go t.issueFindNode(&candidates.c[i], target, &candidates, i, queried, replied, &wg)
+			}
+			if i >= constants.K {
+				break
 			}
 		}
 		candidates.mux.Unlock()
-
 		candidates.mux.Lock()
-		for i := 0; i < constants.K; i++ {
+		for i, _ := range candidates.c {
 			if _, ok := replied[*candidates.c[i].ID]; !ok {
 				pendingReplies = true
+			}
+			if i >= constants.K {
+				break
 			}
 		}
 		candidates.mux.Unlock()
@@ -207,14 +248,117 @@ func (t *T) LookupContact(target *kademliaid.T) []contact.T {
 
 	candidates.mux.Lock()
 	defer candidates.mux.Unlock()
+	if len(candidates.c) < constants.K {
+		return candidates.c
+	}
 	return candidates.c[:constants.K]
 }
 
-func (t *T) LookupData(target *kademliaid.T) kvstore.Value {
-	// TODO
-	//remove whats below this comment, it was just to remove compile errors temporarily
+func (t *T) LookupData(target *kademliaid.T) (kvstore.Value, error) {
 	var data kvstore.Value
-	return data
+	ch := make(chan kvstore.Value)
+	candidates := Candidates{c: make([]contact.T, 0)}
+	queried := make(map[kademliaid.T]contact.T)
+	replied := make(map[kademliaid.T]contact.T)
+
+	// Wait for RPCs
+	var wg sync.WaitGroup
+	// Wait for lookup to terminate
+	var wgLookup sync.WaitGroup
+
+	// Start a routine for the lookup
+	wgLookup.Add(1)
+	go func() {
+		defer wgLookup.Done()
+
+		// Query <ALPHA> closest known nodes
+		closestNodes := t.routingtable.FindClosestContacts(target, constants.ALPHA)
+		for _, node := range closestNodes {
+			wg.Add(1)
+			// Call with i = -1 do denote that there is nothing to evict from candidates yet
+			go t.issueFindValue(&node, target, &candidates, -1, queried, replied, &wg, ch)
+		}
+
+		wg.Wait()
+
+		// Repeat until no closer nodes are found
+		for {
+			aCount := 0
+			candidates.mux.Lock()
+			closestSeen := candidates.c[0]
+			for i, _ := range candidates.c {
+				if _, ok := queried[*candidates.c[i].ID]; !ok {
+					wg.Add(1)
+					go t.issueFindValue(&candidates.c[i], target, &candidates, i, queried, replied, &wg, ch)
+					aCount++
+				}
+				if aCount >= constants.ALPHA {
+					break
+				}
+				if i >= constants.K {
+					break
+				}
+			}
+			candidates.mux.Unlock()
+
+			//  Wait for responses
+			wg.Wait()
+
+			candidates.mux.Lock()
+			if closestSeen.ID == candidates.c[0].ID {
+				break
+			}
+			candidates.mux.Unlock()
+		}
+
+		pendingReplies := true
+		// Query all K closest candidates that have not been queried until all have responded
+		for pendingReplies {
+			pendingReplies = false
+			candidates.mux.Lock()
+			for i, _ := range candidates.c {
+				if _, ok := queried[*candidates.c[i].ID]; !ok {
+					wg.Add(1)
+					go t.issueFindValue(&candidates.c[i], target, &candidates, i, queried, replied, &wg, ch)
+				}
+				if i >= constants.K {
+					break
+				}
+			}
+			candidates.mux.Unlock()
+
+			candidates.mux.Lock()
+			for i, _ := range candidates.c {
+				if _, ok := replied[*candidates.c[i].ID]; !ok {
+					pendingReplies = true
+				}
+				if i >= constants.K {
+					break
+				}
+			}
+			candidates.mux.Unlock()
+		}
+	}()
+
+	// Routine signaling that the lookup has terminated
+	terminated := make(chan struct{})
+	go func() {
+		wgLookup.Wait()
+		close(terminated)
+	}()
+
+	// Wait for either value to be found of lookup to terminate
+	select {
+	case <-terminated:
+		// Do nothing, select ends
+	case data := <-ch:
+		// Value was found
+		return data, nil
+	}
+
+	// Value was not found
+	//TODO: Return error?
+	return data, errors.New("Value not found")
 }
 
 func (t *T) KademliaStore(data []byte)  kademliaid.T {
@@ -231,7 +375,11 @@ func (t *T) KademliaStore(data []byte)  kademliaid.T {
 		//If this node doesn't have the file, do LookupData to find it
 		value, ok := t.kvstore.Get(*id)
 		if !ok {
-			value = t.LookupData(id)
+			var err error
+			value, err = t.LookupData(id)
+			if err != nil {
+				fmt.Println(err)
+			}
 		}
 		value.Timestamp = time.Now()
 
@@ -246,7 +394,10 @@ func (t *T) KademliaStore(data []byte)  kademliaid.T {
 }
 
 func (t *T) Cat(id kademliaid.T) []byte {
-	value := t.LookupData(&id)
+	value, err := t.LookupData(&id)
+	if err != nil {
+		fmt.Println(err)
+	}
 	return value.GetData()
 }
 
@@ -255,7 +406,11 @@ func (t *T) Pin(id kademliaid.T) {
 	//If this node doesn't have the file, do LookupData to find it
 	value, ok := t.kvstore.Get(id)
 	if !ok {
-		value = t.LookupData(&id)
+		var err error
+		value, err = t.LookupData(&id)
+		if err != nil {
+			fmt.Println(err)
+		}
 	}
 	value.Timestamp = time.Now()
 	value.Pin = true
@@ -270,7 +425,11 @@ func (t *T) Pin(id kademliaid.T) {
 func (t *T) Unpin(id kademliaid.T) {
 	value, ok := t.kvstore.Get(id)
 	if !ok {
-		value = t.LookupData(&id)
+		var err error
+		value, err = t.LookupData(&id)
+		if err != nil {
+			fmt.Println(err)
+		}
 	}
 	value.Timestamp = time.Now()
 	value.Pin = false
