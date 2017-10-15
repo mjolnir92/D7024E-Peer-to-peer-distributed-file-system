@@ -69,10 +69,9 @@ type RPCStore struct {
 	Value kvstore.Value
 }
 
-func (nw *T) Listen(ip string, port int) {
+func (nw *T) Listen(address string) {
 	b := make([]byte, 2048)
-	addrStr := fmt.Sprintf("%s:%d", ip, port)
-	laddr, err := net.ResolveUDPAddr("udp", addrStr)
+	laddr, err := net.ResolveUDPAddr("udp", address)
 	if err != nil {
 		log.Fatalf("Error listening on %v: %v\n", laddr, err)
 	}
