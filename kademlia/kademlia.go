@@ -59,10 +59,15 @@ func (t *T) refreshBucket(index int) {
 	}
 }
 
-//A kademlia node t can join the network as long as they know of one other node c
+//A kademlia node t can join the network as long as they know the address of a node already on the network
 //This method connects t to the rest of the network
-func (t *T) Join(c *contact.T) {
-	t.routingtable.AddContact(*c)
+func (t *T) Join(address string) error {
+	//Create a contact with a dummy id. By pinging this contact we insert the real contact (with the real id) into our routingtable
+	contact := contact.New(kademliaid.New("0000000000000000000000000000000000000000"), address)
+	err := t.Ping(&contact)
+	if err != nil {
+		return err
+	}
 	//Does LookupContact send rpcs to all returned contacts? If so i dont need to add them to the routingtable here
 	contacts := t.LookupContact(t.contactMe.ID)
 	for _, c := range(contacts) {
@@ -76,6 +81,7 @@ func (t *T) Join(c *contact.T) {
 		t.refreshBucket(i)
 		t.eventmanager.ResetEvent(*t.contactMe.ID, i, constants.BUCKET_REFRESH)
 	}
+	return nil
 }
 
 // Issue FindNode rpc to target and update a list of candidates accordingly, maps of queried and replied nodes are also updated
