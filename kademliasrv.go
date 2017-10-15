@@ -23,7 +23,7 @@ var joinAddress string
 //var dhtAddress string
 
 func init() {
-	RootCmd.Flags().StringVarP(&joinAddress, "join". "j", "", "join the a network with a node at address")
+	RootCmd.Flags().StringVarP(&joinAddress, "join", "j", "", "join the a network with a node at address")
 	//RootCmd.Flags().Uint16VarP(&port, "port", "p", 8080, "the port that the REST API will use")
 	//RootCmd.Flags().StringVarP(&dhtAddress, "dht-address", "a", "localhost:9999", "the internet socket that the DHT will use")
 }
@@ -50,9 +50,7 @@ func startServer(cmd *cobra.Command, args []string) {
 	kd = kademlia.New(&contactMe)
 	go kd.Listen(address)
 	if joinAddress != "" {
-		// TODO: we don't know our referrer's kademliaID, kd.Join should just take the address and discover it
-		contactJoin := contact.New(dontknowtheirID, joinAddress)
-		kd.Join(contactJoin)
+		kd.Join(joinAddress)
 	}
 	router := gin.New()
 	router.Use(gin.Logger())

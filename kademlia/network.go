@@ -2,7 +2,6 @@ package kademlia
 
 import (
 	"net"
-	"fmt"
 	"log"
 	"time"
 	"bufio"
