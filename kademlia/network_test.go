@@ -22,7 +22,7 @@ func TestRPCs(t *testing.T) {
 	ct_server := contact.New(id_server, "localhost:12300")
 	nw_server := New(&ct_server)
 	nw_server.routingtable.AddContact(ct_client)
-	go nw_server.Listen("localhost", 12300)
+	go nw_server.Listen("localhost:12300")
 	// TODO: clean up the Listen goroutine
 	// Wait a bit so the server is ready
 	time.Sleep(50 * time.Millisecond)
