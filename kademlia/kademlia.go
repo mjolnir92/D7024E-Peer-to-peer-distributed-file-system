@@ -389,9 +389,14 @@ func (t *T) KademliaStore(data []byte)  kademliaid.T {
 }
 
 func (t *T) Cat(id kademliaid.T) []byte {
-	value, err := t.LookupData(&id)
-	if err != nil {
-		fmt.Println(err)
+	value, ok := t.kvstore.Get(id)
+	if !ok {
+		var err error
+		value, err = t.LookupData(&id)
+		if err != nil {
+			fmt.Println(err)
+			return nil
+		}
 	}
 	return value.GetData()
 }
