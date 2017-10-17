@@ -1,48 +1,103 @@
 package kademlia
 
 import (
-	"log"
+	"bytes"
+	"strconv"
 	"time"
 	"testing"
 	"github.com/mjolnir92/kdfs/kademliaid"
 	"github.com/mjolnir92/kdfs/contact"
 )
 
+func TestLookupContact(t *testing.T) {
+	t.Skip()
+	address1 := "localhost:12400"
+	ct_kademlia1 := contact.New(kademliaid.New("FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF"), address1)
+	nw_kademlia1 := New(&ct_kademlia1)
+	go nw_kademlia1.Listen(address1)
+	time.Sleep(50 * time.Millisecond)
+
+	address2 := "localhost:12401"
+	ct_kademlia2 := contact.New(kademliaid.New("0000000000000000000000000000000000000000"), address2)
+	nw_kademlia2 := New(&ct_kademlia2)
+	go nw_kademlia2.Listen(address2)
+	time.Sleep(50 * time.Millisecond)
+	nw_kademlia2.Join(address1)
+
+	for i := 0; i<20; i++ {
+		address := "localhost:"+strconv.Itoa(12410+i)
+		ct := contact.New(kademliaid.NewRandom(), address)
+		nw := New(&ct)
+		go nw.Listen(address)
+		time.Sleep(50*time.Millisecond)
+		nw.Join(address1)
+	}
+
+	target := kademliaid.New("FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF")
+	contacts := nw_kademlia1.LookupContact(target)
+	for _, c := range contacts {
+		if c.ID == target {
+			t.Error("LookupContact did not return the correct contacts")
+		}
+	}
+}
+
 func TestLookupData(t *testing.T) {
-	address := "localhost:12300"
-	ct_client := contact.New(kademliaid.New("1000000000000000000000000000000000000000"), address)
-	nw_client := New(&ct_client)
-	go nw_client.Listen("localhost:12300")
+	address1 := "localhost:12500"
+	ct_kademlia1 := contact.New(kademliaid.New("FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF"), address1)
+	nw_kademlia1 := New(&ct_kademlia1)
+	go nw_kademlia1.Listen(address1)
 	time.Sleep(50 * time.Millisecond)
+
+	address2 := "localhost:12501"
+	ct_kademlia2 := contact.New(kademliaid.New("0000000000000000000000000000000000000000"), address2)
+	nw_kademlia2 := New(&ct_kademlia2)
+	go nw_kademlia2.Listen(address2)
+	time.Sleep(50 * time.Millisecond)
+	nw_kademlia2.Join(address1)
 	
-	ct_server1 := contact.New(kademliaid.New("1100000000000000000000000000000000000000"), "localhost:12301")
-	nw_server1 := New(&ct_server1)
-	go nw_server1.Listen("localhost:12301")
+	for i := 0; i<20; i++ {
+		address := "localhost:"+strconv.Itoa(12510+i)
+		ct := contact.New(kademliaid.NewRandom(), address)
+		nw := New(&ct)
+		go nw.Listen(address)
+		time.Sleep(50*time.Millisecond)
+		nw.Join(address1)
+	}
+
+	testData := []byte("my test data")
+	nw_kademlia2.KademliaStore(testData)
 	time.Sleep(50 * time.Millisecond)
-	nw_server1.Join(address)
+	data, err := nw_kademlia1.LookupData(kademliaid.NewHash(testData))
+	if err != nil {
+		t.Error("LookupData failed: ", err)
+	} else {
+		if bytes.Compare(data.GetData(), testData) != 0 {
+			t.Error("LookupData failed: Wrong data returned")
+		}
+	}
+}
 
-	ct_server2 := contact.New(kademliaid.New("1010000000000000000000000000000000000000"), "localhost:12302")
-	nw_server2 := New(&ct_server2)
-	go nw_server2.Listen("localhost:12302")
+func TestCat(t *testing.T) {
+	address1 := "localhost:12600"
+	ct_kademlia1 := contact.New(kademliaid.New("FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF"), address1)
+	nw_kademlia1 := New(&ct_kademlia1)
+	go nw_kademlia1.Listen(address1)
 	time.Sleep(50 * time.Millisecond)
-	nw_server2.Join(address)
 
-	ct_server3 := contact.New(kademliaid.New("1110000000000000000000000000000000000000"), "localhost:12303")
-	nw_server3 := New(&ct_server3)
-	go nw_server3.Listen("localhost:12303")
+	address2 := "localhost:12601"
+	ct_kademlia2 := contact.New(kademliaid.New("0000000000000000000000000000000000000000"), address2)
+	nw_kademlia2 := New(&ct_kademlia2)
+	go nw_kademlia2.Listen(address2)
 	time.Sleep(50 * time.Millisecond)
-	nw_server3.Join(address)
+	nw_kademlia2.Join(address1)
 
-	ct_server4 := contact.New(kademliaid.New("0000000000000000000000000000000000000001"), "localhost:12304")
-	nw_server4 := New(&ct_server4)
-	go nw_server4.Listen("localhost:12304")
+	testData := []byte("my test data")
+	nw_kademlia2.KademliaStore(testData)
 	time.Sleep(50 * time.Millisecond)
-	nw_server4.Join(address)
-	
-	target := kademliaid.New("1111000000000000000000000000000000000000")
-	contacts := nw_client.LookupContact(target)
-
-	log.Println(contacts)	
-
-
+	id := kademliaid.NewHash(testData)
+	data := nw_kademlia1.Cat(*id)
+	if bytes.Compare(data, testData) != 0 {
+		t.Error("TestCat failed, wrong data")
+	}
 }
