@@ -3,7 +3,6 @@ package kademlia
 import (
 	"net"
 	"time"
-	"fmt"
 	"sort"
 	"sync"
 	"errors"
@@ -406,7 +405,6 @@ func (t *T) Cat(id kademliaid.T) []byte {
 		var err error
 		value, err = t.LookupData(&id)
 		if err != nil {
-			fmt.Println(err)
 			return nil
 		}
 	}
@@ -421,7 +419,7 @@ func (t *T) Pin(id kademliaid.T) {
 		var err error
 		value, err = t.LookupData(&id)
 		if err != nil {
-			fmt.Println(err)
+			return
 		}
 	}
 	value.Timestamp = time.Now()
@@ -440,7 +438,7 @@ func (t *T) Unpin(id kademliaid.T) {
 		var err error
 		value, err = t.LookupData(&id)
 		if err != nil {
-			fmt.Println(err)
+			return
 		}
 	}
 	value.Timestamp = time.Now()

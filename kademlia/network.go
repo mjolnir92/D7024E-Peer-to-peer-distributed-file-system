@@ -299,10 +299,6 @@ func (nw *T) storeResponse(b []byte) {
 			nw.eventmanager.InsertEvent(*id, constants.EXPIRE, expire, constants.EXPIRE_TIME)
 			nw.eventmanager.InsertEvent(*id, constants.REPUBLISH, repub, constants.REPUBLISH_TIME)
 		}
-	} else {
-		//If we didn't insert a new value, should we reset the republish time (efficient republishing?)
-		//Perhaps compare time of current value and msg.Value, only reset if the message had the same or a newer timestamp
-		nw.eventmanager.ResetEvent(*id, constants.REPUBLISH, constants.REPUBLISH_TIME) 
 	}
 }
 
