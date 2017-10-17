@@ -61,7 +61,7 @@ func startServer(cmd *cobra.Command, args []string) {
 		v1.POST("/store", storeEndpoint)
 		v1.GET("/store/:id", getEndpoint)
 		v1.POST("/pin/:id", pinEndpoint)
-		v1.DELETE("/pin/:id", unpinEndpoint)
+		v1.POST("/unpin/:id", unpinEndpoint)
 	}
 	router.Run()
 }
