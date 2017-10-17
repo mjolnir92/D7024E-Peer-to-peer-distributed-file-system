@@ -21,8 +21,8 @@ type Candidates struct {
 }
 
 func (candidates *Candidates) CalcDistances(target *kademliaid.T) {
-	for _, c := range candidates.c {
-		c.CalcDistance(target)
+	for i, _ := range candidates.c {
+		candidates.c[i].CalcDistance(target)
 	}
 }
 
@@ -97,7 +97,6 @@ func (t *T) issueFindNode(node *contact.T, target *kademliaid.T, candidates *Can
 	} else {
 		candidates.c = append(candidates.c, res...)
 		candidates.CalcDistances(target)
-		// TODO failed here. Distances are null or something
 		sort.Sort(contact.ByDist(candidates.c))
 		replied[*node.ID] = *node
 	}
@@ -132,36 +131,10 @@ func (t *T) LookupContact(target *kademliaid.T) []contact.T {
 	queried := make(map[kademliaid.T]contact.T)
 	replied := make(map[kademliaid.T]contact.T)
 	var wg sync.WaitGroup
-	/*
-	ch := make(chan []contact.T)
-
-	// Routine that updates candidates
-	go func() {
-		for i := range ch {
-			candidates.mux.Lock()
-			candidates.c = append(candidates.c, i...)
-			candidates.CalcDistances(target)
-			sort.Sort(contact.ByDist(candidates.c))
-			candidates.mux.Unlock()
-		}
-	}()
-	*/
 
 	// Query <ALPHA> closest known nodes
 	closestNodes := t.routingtable.FindClosestContacts(target, constants.ALPHA)
 	for _, node := range closestNodes {
-		/*
-		go func() {
-			res, err := t.FindNode(node, target)
-			queried[node.ID] = node
-			if err != nil {
-				//TODO: Handle error
-			} else {
-				replied[node.ID] = node
-				ch <- res
-			}
-		}()
-		*/
 		wg.Add(1)
 		// Call with i = -1 do denote that there is nothing to evict from candidates yet
 		go t.issueFindNode(&node, target, &candidates, -1, queried, replied, &wg)
@@ -178,18 +151,6 @@ func (t *T) LookupContact(target *kademliaid.T) []contact.T {
 		closestSeen := candidates.c[0]
 		for i, _ := range candidates.c {
 			if _, ok := queried[*candidates.c[i].ID]; !ok {
-				/*
-				go func() {
-					res, err := t.FindNode(candidates.c[i], target)
-					queried[candidates.c[i].ID] = candidates.c[i]
-					if err != nil {
-						//TODO: Handle error
-					} else {
-						replied[candidates.c[i].ID] = candidates.c[i]
-						ch <- res
-					}
-				}()
-				*/
 				wg.Add(1)
 				go t.issueFindNode(&candidates.c[i], target, &candidates, i, queried, replied, &wg)
 				aCount++
@@ -208,6 +169,7 @@ func (t *T) LookupContact(target *kademliaid.T) []contact.T {
 
 		candidates.mux.Lock()
 		if closestSeen.ID == candidates.c[0].ID {
+			candidates.mux.Unlock()
 			break
 		}
 		candidates.mux.Unlock()
@@ -220,18 +182,6 @@ func (t *T) LookupContact(target *kademliaid.T) []contact.T {
 		candidates.mux.Lock()
 		for i, _ := range candidates.c {
 			if _, ok := queried[*candidates.c[i].ID]; !ok {
-				/*
-				go func() {
-					res, err := t.FindNode(candidates.c[i], target)
-					queried[candidates.c[i].ID] = candidates.c[i]
-					if err != nil {
-						//TODO: Handle error
-					} else {
-						replied[candidates.c[i].ID] = candidates.c[i]
-						ch <- res
-					}
-				}( i,)
-				*/
 				wg.Add(1)
 				go t.issueFindNode(&candidates.c[i], target, &candidates, i, queried, replied, &wg)
 			}
@@ -240,6 +190,7 @@ func (t *T) LookupContact(target *kademliaid.T) []contact.T {
 			}
 		}
 		candidates.mux.Unlock()
+		wg.Wait()
 		candidates.mux.Lock()
 		for i, _ := range candidates.c {
 			if _, ok := replied[*candidates.c[i].ID]; !ok {
@@ -291,6 +242,10 @@ func (t *T) LookupData(target *kademliaid.T) (kvstore.Value, error) {
 		for {
 			aCount := 0
 			candidates.mux.Lock()
+			if len(candidates.c) == 0 {
+				candidates.mux.Unlock()
+				break
+			}
 			closestSeen := candidates.c[0]
 			for i, _ := range candidates.c {
 				if _, ok := queried[*candidates.c[i].ID]; !ok {
@@ -312,6 +267,7 @@ func (t *T) LookupData(target *kademliaid.T) (kvstore.Value, error) {
 
 			candidates.mux.Lock()
 			if closestSeen.ID == candidates.c[0].ID {
+				candidates.mux.Unlock()
 				break
 			}
 			candidates.mux.Unlock()
@@ -332,7 +288,7 @@ func (t *T) LookupData(target *kademliaid.T) (kvstore.Value, error) {
 				}
 			}
 			candidates.mux.Unlock()
-
+			wg.Wait()
 			candidates.mux.Lock()
 			for i, _ := range candidates.c {
 				if _, ok := replied[*candidates.c[i].ID]; !ok {
@@ -363,7 +319,6 @@ func (t *T) LookupData(target *kademliaid.T) (kvstore.Value, error) {
 	}
 
 	// Value was not found
-	//TODO: Return error?
 	return data, errors.New("Value not found")
 }
 
