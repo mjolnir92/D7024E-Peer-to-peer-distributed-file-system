@@ -125,24 +125,42 @@ func (t *T) issueFindNode(node *contact.T, target *kademliaid.T, candidates *Can
 }
 
 // Issue FindValue rpc to target and update a list of candidates accordingly, maps of queried and replied nodes are also updated. If a value is found it is passed to a provided channel
-func (t *T) issueFindValue(node *contact.T, target *kademliaid.T, candidates *Candidates, i int,  queried map[kademliaid.T]contact.T, replied map[kademliaid.T]contact.T, wg *sync.WaitGroup, ch chan kvstore.Value) {
+func (t *T) issueFindValue(node *contact.T, target *kademliaid.T, candidates *Candidates, wg *sync.WaitGroup, ch chan kvstore.Value) {
 	defer wg.Done()
 	val, res, found, err := t.FindValue(node, target)
-	queried[*node.ID] = *node
 	candidates.mux.Lock()
-	if err != nil {
-		if i != -1 {
-			candidates.c = append(candidates.c[:i], candidates.c[i+1:]...)
+	candidates.q[*node.ID] = *node
+
+	// Remove already added nodes from result
+	tempRes := make([]contact.T, 0)
+	for _, r := range res {
+		if _, ok := candidates.a[*r.ID]; !ok {
+			tempRes = append(tempRes, r)
 		}
+	}
+	res = tempRes
+
+	if err != nil {
+		// Replace candidates.c with slice excluding unresponsive node
+		temp := make([]contact.T, 0)
+		for _, c := range candidates.c {
+			if *node.ID != *c.ID {
+				temp = append(temp, c)
+			}
+		}
+		candidates.c = temp
 	} else {
 		if found {
 			ch <- val
 		} else {
 			candidates.c = append(candidates.c, res...)
+			for _, r := range res {
+				candidates.a[*r.ID] = r
+			}
 			candidates.CalcDistances(target)
 			sort.Sort(contact.ByDist(candidates.c))
 		}
-		replied[*node.ID] = *node
+		candidates.r[*node.ID] = *node
 	}
 	candidates.mux.Unlock()
 }
@@ -232,9 +250,7 @@ func (t *T) LookupContact(target *kademliaid.T) []contact.T {
 func (t *T) LookupData(target *kademliaid.T) (kvstore.Value, error) {
 	var data kvstore.Value
 	ch := make(chan kvstore.Value)
-	candidates := Candidates{c: make([]contact.T, 0)}
-	queried := make(map[kademliaid.T]contact.T)
-	replied := make(map[kademliaid.T]contact.T)
+	candidates := Candidates{c: make([]contact.T, 0), q: make(map[kademliaid.T]contact.T), r: make(map[kademliaid.T]contact.T), a: make(map[kademliaid.T]contact.T)}
 
 	// Wait for RPCs
 	var wg sync.WaitGroup
@@ -251,7 +267,7 @@ func (t *T) LookupData(target *kademliaid.T) (kvstore.Value, error) {
 		for _, node := range closestNodes {
 			wg.Add(1)
 			// Call with i = -1 do denote that there is nothing to evict from candidates yet
-			go t.issueFindValue(&node, target, &candidates, -1, queried, replied, &wg, ch)
+			go t.issueFindValue(&node, target, &candidates, &wg, ch)
 		}
 
 		wg.Wait()
@@ -266,9 +282,9 @@ func (t *T) LookupData(target *kademliaid.T) (kvstore.Value, error) {
 			}
 			closestSeen := candidates.c[0]
 			for i, _ := range candidates.c {
-				if _, ok := queried[*candidates.c[i].ID]; !ok {
+				if _, ok := candidates.q[*candidates.c[i].ID]; !ok {
 					wg.Add(1)
-					go t.issueFindValue(&candidates.c[i], target, &candidates, i, queried, replied, &wg, ch)
+					go t.issueFindValue(&candidates.c[i], target, &candidates, &wg, ch)
 					aCount++
 				}
 				if aCount >= constants.ALPHA {
@@ -297,9 +313,9 @@ func (t *T) LookupData(target *kademliaid.T) (kvstore.Value, error) {
 			pendingReplies = false
 			candidates.mux.Lock()
 			for i, _ := range candidates.c {
-				if _, ok := queried[*candidates.c[i].ID]; !ok {
+				if _, ok := candidates.q[*candidates.c[i].ID]; !ok {
 					wg.Add(1)
-					go t.issueFindValue(&candidates.c[i], target, &candidates, i, queried, replied, &wg, ch)
+					go t.issueFindValue(&candidates.c[i], target, &candidates, &wg, ch)
 				}
 				if i >= constants.K {
 					break
@@ -309,7 +325,7 @@ func (t *T) LookupData(target *kademliaid.T) (kvstore.Value, error) {
 			wg.Wait()
 			candidates.mux.Lock()
 			for i, _ := range candidates.c {
-				if _, ok := replied[*candidates.c[i].ID]; !ok {
+				if _, ok := candidates.r[*candidates.c[i].ID]; !ok {
 					pendingReplies = true
 				}
 				if i >= constants.K {
