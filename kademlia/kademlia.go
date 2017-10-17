@@ -88,7 +88,7 @@ func (t *T) Join(address string) error {
 }
 
 // Issue FindNode rpc to target and update a list of candidates accordingly, maps of queried and replied nodes are also updated
-func (t *T) issueFindNode(node *contact.T, target *kademliaid.T, candidates *Candidates, i int, wg *sync.WaitGroup) {
+func (t *T) issueFindNode(node *contact.T, target *kademliaid.T, candidates *Candidates, wg *sync.WaitGroup) {
 	defer wg.Done()
 	res, err := t.FindNode(node, target)
 	candidates.mux.Lock()
@@ -101,9 +101,14 @@ func (t *T) issueFindNode(node *contact.T, target *kademliaid.T, candidates *Can
 	}
 	*/
 	if err != nil {
-		if i != -1 {
-			candidates.c = append(candidates.c[:i], candidates.c[i+1:]...)
+		// Replace candidates.c with slice excluding unresponsive node
+		temp := make([]contact.T, 0)
+		for _, c := range candidates.c {
+			if *node.ID != *c.ID {
+				temp = append(temp, c)
+			}
 		}
+		candidates.c = temp
 	} else {
 		candidates.c = append(candidates.c, res...)
 		/*
@@ -142,18 +147,14 @@ func (t *T) issueFindValue(node *contact.T, target *kademliaid.T, candidates *Ca
 }
 
 func (t *T) LookupContact(target *kademliaid.T) []contact.T {
-	queried := make(map[kademliaid.T]contact.T)
-	replied := make(map[kademliaid.T]contact.T)
-	appended := make(map[kademliaid.T]contact.T)
-	candidates := Candidates{c: make([]contact.T, 0), q: queried, r: replied, a: appended}
+	candidates := Candidates{c: make([]contact.T, 0), q: make(map[kademliaid.T]contact.T), r: make(map[kademliaid.T]contact.T), a: make(map[kademliaid.T]contact.T)}
 	var wg sync.WaitGroup
 
 	// Query <ALPHA> closest known nodes
 	closestNodes := t.routingtable.FindClosestContacts(target, constants.ALPHA)
 	for _, node := range closestNodes {
 		wg.Add(1)
-		// Call with i = -1 do denote that there is nothing to evict from candidates yet
-		go t.issueFindNode(&node, target, &candidates, -1, &wg)
+		go t.issueFindNode(&node, target, &candidates, &wg)
 	}
 	wg.Wait()
 	// Repeat until no closer nodes are found
@@ -168,7 +169,7 @@ func (t *T) LookupContact(target *kademliaid.T) []contact.T {
 		for i, _ := range candidates.c {
 			if _, ok := candidates.q[*candidates.c[i].ID]; !ok {
 				wg.Add(1)
-				go t.issueFindNode(&candidates.c[i], target, &candidates, i, &wg)
+				go t.issueFindNode(&candidates.c[i], target, &candidates, &wg)
 				aCount++
 			}
 			if aCount >= constants.ALPHA {
@@ -199,7 +200,7 @@ func (t *T) LookupContact(target *kademliaid.T) []contact.T {
 		for i, _ := range candidates.c {
 			if _, ok := candidates.q[*candidates.c[i].ID]; !ok {
 				wg.Add(1)
-				go t.issueFindNode(&candidates.c[i], target, &candidates, i, &wg)
+				go t.issueFindNode(&candidates.c[i], target, &candidates, &wg)
 			}
 			if i >= constants.K {
 				break
