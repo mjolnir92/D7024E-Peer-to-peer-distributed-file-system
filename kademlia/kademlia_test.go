@@ -66,6 +66,7 @@ func TestLookupData(t *testing.T) {
 	}
 
 	testData := []byte("my test data")
+	testData2 := []byte("should not exist")
 	nw_kademlia2.KademliaStore(testData)
 	time.Sleep(50 * time.Millisecond)
 	data, err := nw_kademlia1.LookupData(kademliaid.NewHash(testData))
@@ -75,6 +76,10 @@ func TestLookupData(t *testing.T) {
 		if bytes.Compare(data.GetData(), testData) != 0 {
 			t.Error("LookupData failed: Wrong data returned")
 		}
+	}
+	data, err = nw_kademlia1.LookupData(kademliaid.NewHash(testData2))
+	if err == nil {
+		t.Error("Requested data should not exist")
 	}
 }
 
