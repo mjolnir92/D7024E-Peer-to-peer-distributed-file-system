@@ -10,6 +10,7 @@ echo "Starting node $i"
 container_name[i]=$(docker run -d kademlia)
 container_ip[i]=$(docker inspect ${container_name[$i]} | jq -r '.[0].NetworkSettings.Networks.bridge.IPAddress')
 for i in $(seq 1 $num_nodes); do
+	sleep 0.2
 	echo "Starting node $i"
 	container_name[i]=$(docker run -d kademlia -j ${container_ip[0]}:1200)
 	container_ip[i]=$(docker inspect ${container_name[$i]} | jq -r '.[0].NetworkSettings.Networks.bridge.IPAddress')
