@@ -93,13 +93,16 @@ func (t *T) issueFindNode(node *contact.T, target *kademliaid.T, candidates *Can
 	res, err := t.FindNode(node, target)
 	candidates.mux.Lock()
 	candidates.q[*node.ID] = *node
-	/*
-	for j, r := range res {
-		if _, ok := appended[*r.ID]; ok {
-			res = append(res[:j], res[j+1:]...)
+
+	// Remove already added nodes from result
+	tempRes := make([]contact.T, 0)
+	for _, r := range res {
+		if _, ok := candidates.a[*r.ID]; !ok {
+			tempRes = append(tempRes, r)
 		}
 	}
-	*/
+	res = tempRes
+
 	if err != nil {
 		// Replace candidates.c with slice excluding unresponsive node
 		temp := make([]contact.T, 0)
@@ -111,11 +114,9 @@ func (t *T) issueFindNode(node *contact.T, target *kademliaid.T, candidates *Can
 		candidates.c = temp
 	} else {
 		candidates.c = append(candidates.c, res...)
-		/*
 		for _, r := range res {
-			appended[*r.ID] = r
+			candidates.a[*r.ID] = r
 		}
-		*/
 		candidates.CalcDistances(target)
 		sort.Sort(contact.ByDist(candidates.c))
 		candidates.r[*node.ID] = *node
