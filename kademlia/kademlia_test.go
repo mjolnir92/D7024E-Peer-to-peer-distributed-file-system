@@ -10,7 +10,7 @@ import (
 )
 
 func TestLookupContact(t *testing.T) {
-	t.Skip()
+	//t.Skip()
 	address1 := "localhost:12400"
 	ct_kademlia1 := contact.New(kademliaid.New("FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF"), address1)
 	nw_kademlia1 := New(&ct_kademlia1)
