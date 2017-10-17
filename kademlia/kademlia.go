@@ -381,8 +381,12 @@ func (t *T) KademliaStore(data []byte)  kademliaid.T {
 			var err error
 			value, err = t.LookupData(id)
 			if err != nil {
-				fmt.Println(err)
+				return
 			}
+		}
+		if !value.Pin {
+			t.eventmanager.DeleteEvent(*id, constants.PUBLISH)
+			return
 		}
 		value.Timestamp = time.Now()
 
