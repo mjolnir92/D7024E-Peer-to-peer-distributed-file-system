@@ -204,6 +204,10 @@ func (t *T) LookupContact(target *kademliaid.T) []contact.T {
 		wg.Wait()
 
 		candidates.mux.Lock()
+		if len(candidates.c) == 0 {
+			candidates.mux.Unlock()
+			break
+		}
 		if closestSeen.ID == candidates.c[0].ID {
 			candidates.mux.Unlock()
 			break
@@ -300,6 +304,10 @@ func (t *T) LookupData(target *kademliaid.T) (kvstore.Value, error) {
 			wg.Wait()
 
 			candidates.mux.Lock()
+			if len(candidates.c) == 0 {
+				candidates.mux.Unlock()
+				break
+			}
 			if closestSeen.ID == candidates.c[0].ID {
 				candidates.mux.Unlock()
 				break
