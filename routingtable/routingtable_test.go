@@ -38,3 +38,36 @@ func TestRoutingTable(t *testing.T) {
 		}
 	}
 }
+
+func TestReplacementCache(t *testing.T) {
+	id0 := kademliaid.New("FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF")
+	c0 := contact.New(id0, "localhost:8000")
+	routingtable := New(c0, eventmanager.New(), constants.K)
+
+	for i:=0;i<constants.K-1;i++ {
+		id := kademliaid.NewRandomCommonPrefix(*id0,8)
+		routingtable.AddContact(contact.New(id, "localhost:8000"))
+	}
+
+	id1 := kademliaid.NewRandomCommonPrefix(*id0,8)
+	cTest1 := contact.New(id1, "localhost:8000")
+	routingtable.AddContact(cTest1)
+
+	//This contact should end up in the replacement cache
+	id2 := kademliaid.NewRandomCommonPrefix(*id0,8)
+	cTest2 := contact.New(id2, "THIS IS NOT A PROPER ADDRESS")
+	routingtable.AddContact(cTest2)
+
+	//This should evict cTest1 and put cTest2 into the bucket from the cache
+	routingtable.EvictAndReplace(cTest1)
+	cInBucket := false
+	for _, c := range routingtable.FindKClosestContacts(id0) {
+		if c.Address == cTest2.Address {
+			cInBucket = true
+		}
+	}
+	if !cInBucket {
+		t.Error("TestReplacementCache failed, contact was not in bucket")
+	}
+
+}
