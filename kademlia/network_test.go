@@ -67,15 +67,14 @@ func TestRPCs(t *testing.T) {
 			t.Errorf("Findvalue did not return a contact:\nExpected:\n%v", ct_client)
 		}
 		// value is stored on the server
+		log.Println("now starting real findvalue test")
 		nw_server.kvstore.Store(stored_val)
 		value, contacts, gotData, err = nw_client.FindValue(&ct_server, id_val)
 		if err != nil {
 			t.Error("FindValue returned an error:", err)
-		}
-		if gotData != true {
+		} else if gotData != true {
 			t.Error("Value was not found")
-		}
-		if !bytes.Equal(value.GetData(), stored_val.GetData()) {
+		} else if !bytes.Equal(value.GetData(), stored_val.GetData()) {
 			t.Errorf("Didn't get the data that was stored. Expected\n%v\nGot\n%v\n", stored_val.GetData(), value.GetData())
 		}
 	})
@@ -101,20 +100,27 @@ func TestMarshal(t *testing.T) {
 	id_client := kademliaid.New("1000000000000000000000000000000000000000")
 	ct_client := contact.New(id_client, "localhost:12310")
 	nw_client := New(&ct_client)
-	id_server := kademliaid.New("0000000000000000000000000000000000000000")
-	expected := RPCFindNode{RPCType: FIND_NODE, Sender: *nw_client.contactMe, FindID: *id_server}
-	b, err := msgpack.Marshal(&expected)
-	if err != nil {
-		t.Error("marshal failed")
-	}
-	var got RPCFindNode
-	err = msgpack.Unmarshal(b, &got)
-	if err != nil {
-		t.Error("unmarshal failed")
-	}
-	log.Printf("%v", got.Sender.ID)
-	// For Sender.ID, the pointers should be different, but the values should be the same
-	if *got.Sender.ID != *expected.Sender.ID || got.Sender.Address != expected.Sender.Address {
-		t.Errorf("Didn't get what we expected.\nexpected\n%v\ngot\n%v\n", expected, got)
+	//id_server := kademliaid.New("0000000000000000000000000000000000000000")
+	//expected := RPCFindNode{RPCType: FIND_NODE, Sender: *nw_client.contactMe, FindID: *id_server}
+	for i := 0; i < 10; i++ {
+		expected_val := kvstore.NewValue(true, []byte{255,240,0})
+		contacts := []contact.T{}
+		expected := RPCFindValueResponse{RPCType: FIND_VALUE_RESPONSE, Sender: *nw_client.contactMe, Value: expected_val, Contacts: contacts}
+		b, err := msgpack.Marshal(&expected)
+		if err != nil {
+			t.Error("marshal failed")
+		}
+		//var got RPCFindNode
+		var got RPCFindValueResponse
+		//var got kvstore.Value
+		err = msgpack.Unmarshal(b, &got)
+		if err != nil {
+			t.Error("unmarshal failed")
+		}
+		//log.Printf("%v", got.Sender.ID)
+		// For Sender.ID, the pointers should be different, but the values should be the same
+		if *got.Sender.ID != *expected.Sender.ID || got.Sender.Address != expected.Sender.Address {
+			t.Errorf("Didn't get what we expected.\nexpected\n%v\ngot\n%v\n", expected, got)
+		}
 	}
 }

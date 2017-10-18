@@ -85,7 +85,7 @@ func (nw *T) Listen(address string) {
 			log.Printf("Error reading UDP: %v", err)
 			continue
 		}
-		go nw.resolveRPC(b, raddr)
+		nw.resolveRPC(b, raddr)
 	}
 	// unreachable
 }
@@ -115,12 +115,12 @@ func (nw *T) send(c *contact.T, msg []byte) (*net.UDPConn, error) {
 func (nw *T) respond(msg interface{}, raddr *net.UDPAddr) error {
 	b, err := msgpack.Marshal(msg)
 	if err != nil {
-		log.Printf("Error marshalling PingResponse: %v\n", err)
+		log.Printf("Error marshalling response: %v\n", err)
 		return err
 	}
 	_, err = nw.conn.WriteTo(b, raddr)
 	if err != nil {
-		log.Printf("Error writing PingResponse: %v\n", err)
+		log.Printf("Error writing response: %v\n", err)
 		return err
 	}
 	return nil
@@ -208,7 +208,7 @@ func (nw *T) FindNode(c *contact.T, findID *kademliaid.T) ([]contact.T, error) {
 	return res.Contacts, nil
 }
 
-// FindValue returns the value as []byte if it was found or some []contacts if it wasn't.
+// FindValue returns the value if it was found or some []contacts if it wasn't.
 // The third return value is a bool that is true if the value was found.
 func (nw *T) FindValue(c *contact.T, findID *kademliaid.T) (kvstore.Value, []contact.T, bool, error) {
 	msg := RPCFindValue{RPCType: FIND_VALUE, Sender: *nw.contactMe, FindID: *findID}
