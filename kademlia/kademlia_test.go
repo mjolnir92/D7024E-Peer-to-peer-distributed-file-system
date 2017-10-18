@@ -7,10 +7,10 @@ import (
 	"testing"
 	"github.com/mjolnir92/kdfs/kademliaid"
 	"github.com/mjolnir92/kdfs/contact"
+	"github.com/mjolnir92/kdfs/constants"
 )
 
 func TestLookupContact(t *testing.T) {
-	//t.Skip()
 	address1 := "localhost:12400"
 	ct_kademlia1 := contact.New(kademliaid.New("FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF"), address1)
 	nw_kademlia1 := New(&ct_kademlia1)
@@ -104,5 +104,45 @@ func TestCat(t *testing.T) {
 	data := nw_kademlia1.Cat(*id)
 	if bytes.Compare(data, testData) != 0 {
 		t.Error("TestCat failed, wrong data")
+	}
+}
+
+func TestPinUnpin(t *testing.T) {
+	address1 := "localhost:12700"
+	ct_kademlia1 := contact.New(kademliaid.New("FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF"), address1)
+	nw_kademlia1 := New(&ct_kademlia1)
+	go nw_kademlia1.Listen(address1)
+	time.Sleep(50 * time.Millisecond)
+
+	address2 := "localhost:12701"
+	ct_kademlia2 := contact.New(kademliaid.New("0000000000000000000000000000000000000000"), address2)
+	nw_kademlia2 := New(&ct_kademlia2)
+	go nw_kademlia2.Listen(address2)
+	time.Sleep(50 * time.Millisecond)
+	nw_kademlia2.Join(address1)
+	time.Sleep(50 * time.Millisecond)
+
+	for i := 0; i<30; i++ {
+		address := "localhost:"+strconv.Itoa(12710+i)
+		ct := contact.New(kademliaid.NewRandom(), address)
+		nw := New(&ct)
+		go nw.Listen(address)
+		time.Sleep(50*time.Millisecond)
+		nw.Join(address1)
+	}
+
+	testData := []byte("my test data")
+	nw_kademlia2.KademliaStore(testData)
+	time.Sleep(50 * time.Millisecond)
+	id := kademliaid.NewHash(testData)
+	data := nw_kademlia1.Cat(*id)
+	if bytes.Compare(data, testData) != 0 {
+		t.Error("TestPinUnpin failed, wrong data")
+	}
+
+	time.Sleep(constants.EXPIRE_TIME)
+	data = nw_kademlia1.Cat(*id)
+	if bytes.Compare(data, testData) == 0 {
+		t.Error("TestPinUnpin failed, data stayed after unpin")
 	}
 }
