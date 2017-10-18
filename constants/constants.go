@@ -19,6 +19,3 @@ const (
 	REPUBLISH = "REPUBLISH"
 	EXPIRE = "EXPIRE"
 )
-
-//eventTypes for events in the kademlia implementation
-//bucket refresh events should just have an int to signify bucket index
