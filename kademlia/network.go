@@ -147,6 +147,7 @@ func (nw *T) rpc(c *contact.T, msg interface{}, response interface{}) (error) {
 	return nil
 }
 
+//Sends an rpc without updating the routingtable of this node.
 func (nw *T) rpcNoRefresh(c *contact.T, msg interface{}, response interface{}) (*RPCHeader, error) {
 	b, err := msgpack.Marshal(msg)
 	if err != nil {
@@ -184,16 +185,6 @@ func (nw *T) Ping(c *contact.T) error {
 		return err
 	}
 	// routing table is updated as a side effect of receiving the response
-	return nil
-}
-
-func (nw *T) PingNoRefresh(c *contact.T) error {
-	msg := RPCPing{RPCType: PING, Sender: *nw.contactMe}
-	var res RPCPingResponse
-	_, err := nw.rpcNoRefresh(c, msg, &res)
-	if err != nil {
-		return err
-	}
 	return nil
 }
 
