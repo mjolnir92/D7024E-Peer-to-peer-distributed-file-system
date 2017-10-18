@@ -296,7 +296,9 @@ func (nw *T) storeResponse(b []byte) {
 			nw.eventmanager.DeleteEvent(*id, constants.EXPIRE)
 			nw.eventmanager.InsertEvent(*id, constants.REPUBLISH, repub, constants.REPUBLISH_TIME)
 		} else {
-			nw.eventmanager.InsertEvent(*id, constants.EXPIRE, expire, constants.EXPIRE_TIME)
+			expireDate := msg.Value.Timestamp.Add(constants.EXPIRE_TIME)
+			untilExpireDate := time.Until(expireDate)
+			nw.eventmanager.InsertEvent(*id, constants.EXPIRE, expire, untilExpireDate)
 			nw.eventmanager.InsertEvent(*id, constants.REPUBLISH, repub, constants.REPUBLISH_TIME)
 		}
 	}

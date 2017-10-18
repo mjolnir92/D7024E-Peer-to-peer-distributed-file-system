@@ -105,9 +105,9 @@ func (t *T) issueFindNode(node *contact.T, target *kademliaid.T, candidates *Can
 	if err != nil {
 		// Replace candidates.c with slice excluding unresponsive node
 		temp := make([]contact.T, 0)
-		for _, c := range candidates.c {
-			if *node.ID != *c.ID {
-				temp = append(temp, c)
+		for i, c := range candidates.c {
+			if *c.ID != *node.ID {
+				temp = append(temp, candidates.c[i])
 			}
 		}
 		candidates.c = temp
@@ -142,9 +142,9 @@ func (t *T) issueFindValue(node *contact.T, target *kademliaid.T, candidates *Ca
 	if err != nil {
 		// Replace candidates.c with slice excluding unresponsive node
 		temp := make([]contact.T, 0)
-		for _, c := range candidates.c {
-			if *node.ID != *c.ID {
-				temp = append(temp, c)
+		for i, c := range candidates.c {
+			if *c.ID != *node.ID {
+				temp = append(temp, candidates.c[i])
 			}
 		}
 		candidates.c = temp
@@ -193,7 +193,7 @@ func (t *T) LookupContact(target *kademliaid.T) []contact.T {
 			if aCount >= constants.ALPHA {
 				break
 			}
-			if i >= constants.K {
+			if i >= constants.K-1 {
 				break
 			}
 		}
@@ -220,22 +220,24 @@ func (t *T) LookupContact(target *kademliaid.T) []contact.T {
 		pendingReplies = false
 		candidates.mux.Lock()
 		for i, _ := range candidates.c {
-			if _, ok := candidates.q[*candidates.c[i].ID]; !ok {
+			if _, ok := candidates.r[*candidates.c[i].ID]; !ok {
 				wg.Add(1)
 				go t.issueFindNode(&candidates.c[i], target, &candidates, &wg)
 			}
-			if i >= constants.K {
+			if i >= constants.K-1 {
 				break
 			}
 		}
 		candidates.mux.Unlock()
+
 		wg.Wait()
+
 		candidates.mux.Lock()
 		for i, _ := range candidates.c {
 			if _, ok := candidates.r[*candidates.c[i].ID]; !ok {
 				pendingReplies = true
 			}
-			if i >= constants.K {
+			if i >= constants.K-1 {
 				break
 			}
 		}
@@ -293,7 +295,7 @@ func (t *T) LookupData(target *kademliaid.T) (kvstore.Value, error) {
 				if aCount >= constants.ALPHA {
 					break
 				}
-				if i >= constants.K {
+				if i >= constants.K-1 {
 					break
 				}
 			}
@@ -320,22 +322,24 @@ func (t *T) LookupData(target *kademliaid.T) (kvstore.Value, error) {
 			pendingReplies = false
 			candidates.mux.Lock()
 			for i, _ := range candidates.c {
-				if _, ok := candidates.q[*candidates.c[i].ID]; !ok {
+				if _, ok := candidates.r[*candidates.c[i].ID]; !ok {
 					wg.Add(1)
 					go t.issueFindValue(&candidates.c[i], target, &candidates, &wg, ch)
 				}
-				if i >= constants.K {
+				if i >= constants.K-1 {
 					break
 				}
 			}
 			candidates.mux.Unlock()
+
 			wg.Wait()
+
 			candidates.mux.Lock()
 			for i, _ := range candidates.c {
 				if _, ok := candidates.r[*candidates.c[i].ID]; !ok {
 					pendingReplies = true
 				}
-				if i >= constants.K {
+				if i >= constants.K-1 {
 					break
 				}
 			}
