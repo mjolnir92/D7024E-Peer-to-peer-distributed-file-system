@@ -16,6 +16,7 @@ type T struct {
 func New(bucketSize int) *T {
 	bucket := &T{}
 	bucket.list = list.New()
+	bucket.replacementCache = list.New()
 	bucket.bucketSize = bucketSize
 	return bucket
 }
@@ -30,7 +31,7 @@ func (bucket *T) AddContact(c contact.T) {
 			element = bucket.getElement(bucket.replacementCache, c)
 			if element == nil {
 				if bucket.replacementCache.Len() < bucket.bucketSize {
-					bucket.replacementCache.PushFront(element)
+					bucket.replacementCache.PushFront(c)
 				}
 			} else {
 				bucket.replacementCache.MoveToFront(element)
@@ -45,14 +46,16 @@ func (bucket *T) AddContact(c contact.T) {
 func (bucket *T) EvictAndReplace(c contact.T) {
 	element := bucket.getElement(bucket.list, c)
 	if element != nil {
-		if !(bucket.list.Len() < bucket.bucketSize || bucket.replacementCache.Len() == 0) {
-			//If there is at least one element in the cache and the list is full, evict and replace
+		if (bucket.list.Len() < bucket.bucketSize || bucket.replacementCache.Len() == 0) {
+			return
+		} else {
+			//If there is at least one element in the cache and the bucket is full, evict and replace
 			bucket.list.Remove(element)
 			replacement := bucket.replacementCache.Front()
-			if element != nil {
+			if replacement != nil {
 				bucket.AddContact(replacement.Value.(contact.T))
 				bucket.replacementCache.Remove(replacement)
-			}	
+			}
 		}
 	}
 }
