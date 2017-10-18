@@ -35,7 +35,17 @@ func (routingTable *T) AddContact(contact contact.T) {
 	routingTable.mux.Lock()
 	bucketIndex := routingTable.GetBucketIndex(contact.ID)
 	bucket := routingTable.buckets[bucketIndex]
-	bucket.AddContact(contact, routingTable.pingCallback)
+	bucket.AddContact(contact)
+	routingTable.eventmanager.ResetEvent(*routingTable.me.ID, bucketIndex, constants.BUCKET_REFRESH)
+	routingTable.mux.Unlock()
+}
+
+//Evicts contact from the routingtable and replace it with a contact from the cache, if any exists
+func (routingTable *T) EvictAndReplace(contact contact.T) {
+	routingTable.mux.Lock()
+	bucketIndex := routingTable.GetBucketIndex(contact.ID)
+	bucket := routingTable.buckets[bucketIndex]
+	bucket.EvictAndReplace(contact)
 	routingTable.eventmanager.ResetEvent(*routingTable.me.ID, bucketIndex, constants.BUCKET_REFRESH)
 	routingTable.mux.Unlock()
 }

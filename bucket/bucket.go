@@ -6,8 +6,10 @@ import (
 	"github.com/mjolnir92/kdfs/kademliaid"
 )
 
+//The front of a list is the tail of the list (most recently seen), the back of the list is the head (least recently seen)
 type T struct {
 	list *list.List
+	replacementCache *list.List
 	bucketSize int
 }
 
@@ -19,37 +21,50 @@ func New(bucketSize int) *T {
 }
 
 //The ping callback function should be the ping method from kademlia/network
-func (bucket *T) AddContact(c contact.T, ping func(c2 *contact.T) error) {
+func (bucket *T) AddContact(c contact.T) {
+	element := bucket.getElement(bucket.list, c)
+	if element == nil {
+		if bucket.list.Len() < bucket.bucketSize {
+			bucket.list.PushFront(c)
+		} else {
+			//The bucket is full, put the contact in the replacementCache
+			element = bucket.getElement(bucket.replacementCache, c)
+			if element != nil {
+				bucket.replacementCache.MoveToFront(element)
+			} else {
+				bucket.replacementCache.PushFront(element)
+			}
+		}
+	} else {
+		bucket.list.MoveToFront(element)
+	}
+}
+
+//Remove the contact c from the bucket and replace it with the most recently seen from the replacement cache
+//TODO FIX
+func (bucket *T) EvictAndReplace(c contact.T) {
+	element := bucket.getElement(bucket.list, c)
+	if element != nil {
+		//If the element existed, remove it and replace it
+		bucket.list.Remove(element)
+		replacement := bucket.replacementCache.Front()
+		if element != nil {
+			bucket.AddContact(replacement.Value.(contact.T))
+			bucket.replacementCache.Remove(replacement)
+		}
+	}
+}
+
+func (bucket *T) getElement(l *list.List, c contact.T) *list.Element {
 	var element *list.Element
-	for e := bucket.list.Front(); e != nil; e = e.Next() {
+	for e := l.Front(); e != nil; e = e.Next() {
 		nodeID := e.Value.(contact.T).ID
 
 		if (c).ID.Equals(nodeID) {
 			element = e
 		}
 	}
-
-	//The front of the list is the tail of the list, the back of the list is the head
-	if element == nil {
-		if bucket.list.Len() < bucket.bucketSize {
-			bucket.list.PushFront(c)
-		} else {
-			//ping least-recently seen node, evict if unresponsive and insert the new contact at the tail
-			//if it responds move it to the front of the list and discard the new contact
-			leastRecent := bucket.list.Back()
-			if leastRecent != nil {
-				leastRecentContact := leastRecent.Value.(contact.T)
-				if err := ping(&leastRecentContact); err != nil {
-					bucket.list.Remove(leastRecent)
-					bucket.list.PushFront(c)
-				} else {
-					bucket.list.MoveToFront(leastRecent)
-				}
-			}
-		}
-	} else {
-		bucket.list.MoveToFront(element)
-	}
+	return element
 }
 
 func (bucket *T) GetContactAndCalcDistance(target *kademliaid.T) []contact.T {
