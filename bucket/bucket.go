@@ -20,7 +20,6 @@ func New(bucketSize int) *T {
 	return bucket
 }
 
-//The ping callback function should be the ping method from kademlia/network
 func (bucket *T) AddContact(c contact.T) {
 	element := bucket.getElement(bucket.list, c)
 	if element == nil {
@@ -29,10 +28,12 @@ func (bucket *T) AddContact(c contact.T) {
 		} else {
 			//The bucket is full, put the contact in the replacementCache
 			element = bucket.getElement(bucket.replacementCache, c)
-			if element != nil {
-				bucket.replacementCache.MoveToFront(element)
+			if element == nil {
+				if bucket.replacementCache.Len() < bucket.bucketSize {
+					bucket.replacementCache.PushFront(element)
+				}
 			} else {
-				bucket.replacementCache.PushFront(element)
+				bucket.replacementCache.MoveToFront(element)
 			}
 		}
 	} else {
@@ -41,16 +42,17 @@ func (bucket *T) AddContact(c contact.T) {
 }
 
 //Remove the contact c from the bucket and replace it with the most recently seen from the replacement cache
-//TODO FIX
 func (bucket *T) EvictAndReplace(c contact.T) {
 	element := bucket.getElement(bucket.list, c)
 	if element != nil {
-		//If the element existed, remove it and replace it
-		bucket.list.Remove(element)
-		replacement := bucket.replacementCache.Front()
-		if element != nil {
-			bucket.AddContact(replacement.Value.(contact.T))
-			bucket.replacementCache.Remove(replacement)
+		if !(bucket.list.Len() < bucket.bucketSize || bucket.replacementCache.Len() == 0) {
+			//If there is at least one element in the cache and the list is full, evict and replace
+			bucket.list.Remove(element)
+			replacement := bucket.replacementCache.Front()
+			if element != nil {
+				bucket.AddContact(replacement.Value.(contact.T))
+				bucket.replacementCache.Remove(replacement)
+			}	
 		}
 	}
 }

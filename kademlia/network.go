@@ -140,11 +140,10 @@ func (nw *T) receive(conn *net.UDPConn) ([]byte, error) {
 func (nw *T) rpc(c *contact.T, msg interface{}, response interface{}) (error) {
 	header, err := nw.rpcNoRefresh(c, msg, response)
 	if err != nil {
+		nw.routingtable.EvictAndReplace(*c)
 		return err
 	}
-	if header != nil {
-		nw.routingtable.AddContact(header.Sender)
-	}
+	nw.routingtable.AddContact(header.Sender)
 	return nil
 }
 
