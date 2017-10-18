@@ -40,7 +40,7 @@ func New(contactMe *contact.T) *T{
 	t := &T{}
 	t.contactMe = contactMe
 	t.eventmanager = eventmanager.New()
-	t.routingtable = routingtable.New(*t.contactMe, t.eventmanager, constants.K, t.PingNoRefresh)
+	t.routingtable = routingtable.New(*t.contactMe, t.eventmanager, constants.K)
 	t.kvstore = kvstore.New()
 
 	for i := 0; i < kademliaid.IDLength*8; i++{

@@ -14,18 +14,16 @@ type T struct {
 	me      contact.T
 	eventmanager *eventmanager.T
 	buckets [kademliaid.IDLength * 8]*bucket.T
-	pingCallback func(c *contact.T) error
 	mux sync.Mutex
 }
 
-func New(me contact.T, em *eventmanager.T, bucketSize int, f func(c *contact.T) error) *T {
+func New(me contact.T, em *eventmanager.T, bucketSize int) *T {
 	routingTable := &T{}
 	for i := 0; i < kademliaid.IDLength*8; i++ {
 		routingTable.buckets[i] = bucket.New(bucketSize)
 	}
 	routingTable.me = me
 	routingTable.eventmanager = em
-	routingTable.pingCallback = f
 	return routingTable
 }
 
