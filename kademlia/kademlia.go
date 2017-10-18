@@ -70,7 +70,6 @@ func (t *T) Join(address string) error {
 	if err != nil {
 		return err
 	}
-	//Does LookupContact send rpcs to all returned contacts? If so i dont need to add them to the routingtable here
 	contacts := t.LookupContact(t.contactMe.ID)
 	for _, c := range(contacts) {
 		t.routingtable.AddContact(c)
@@ -387,10 +386,6 @@ func (t *T) KademliaStore(data []byte)  kademliaid.T {
 				return
 			}
 		}
-		if !value.Pin {
-			t.eventmanager.DeleteEvent(*id, constants.PUBLISH)
-			return
-		}
 		value.Timestamp = time.Now()
 
 		contacts := t.LookupContact(id)
@@ -398,7 +393,6 @@ func (t *T) KademliaStore(data []byte)  kademliaid.T {
 			go t.Store(&contacts[i], &value)
 		}
 	}
-	//Will this event ever be removed? As it looks like right now, no.
 	t.eventmanager.InsertEvent(*id, constants.PUBLISH, f, constants.PUBLISH_TIME)
 	return *id
 }

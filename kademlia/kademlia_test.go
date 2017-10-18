@@ -171,6 +171,7 @@ func TestExpire(t *testing.T) {
 	val := kvstore.NewValue(false, testData)
 	id := kademliaid.NewHash(testData)
 	nw_kademlia1.Store(&ct_kademlia2, &val)
+	nw_kademlia1.eventmanager.DeleteEvent(*id, constants.PUBLISH)
 	time.Sleep(50 * time.Millisecond)
 	if _, ok := nw_kademlia2.kvstore.Get(*id); !ok {
 		t.Error("TestExpire failed, value not stored")
